@@ -25,16 +25,14 @@
  * >> Execute a function with given data set
  */
 
-package PluginReg
+package GoPlug
 
 import (
 	"errors"
 	"fmt"
 	//log "github.com/spf13/jwalterweatherman"
 	"com.ss/goplugin/PluginConn"
-	"encoding/json"
 	"io/ioutil"
-	"os"
 	"path/filepath"
 	"sync"
 	"time"
@@ -72,14 +70,6 @@ type Plugin struct {
 	PluginUrl string
 	// The plugin Connection
 	pluginConn *PluginConn.PluginClient
-}
-
-type PluginConf struct {
-	Name      string
-	NameSpace string
-	Url       string
-	Sock      string
-	LazyLoad  bool
 }
 
 /* PluginRegConf provides the configuration to create a plugin registry
@@ -397,24 +387,6 @@ func (pluginReg *PluginReg) getPlugin(appPlugin string) *Plugin {
 	return nil
 }
 
-// load the config data from the file
-func loadConfigs(fname string) (PluginConf, error) {
-	// open the config file
-	configuration := PluginConf{}
-	file, err := os.Open(fname)
-	if err != nil {
-		return configuration, err
-	}
-	// load the config from file
-	decoder := json.NewDecoder(file)
-	loaderr := decoder.Decode(&configuration)
-	if loaderr != nil {
-		return configuration, loaderr
-	}
-
-	return configuration, nil
-}
-
 // Activate a plugin
 func (plugin *Plugin) activate() error {
 	pluginUrl := plugin.PluginUrl
@@ -472,8 +444,5 @@ func (plugin *Plugin) Execute(funcName string, body []byte) (error, []byte) {
 		return fmt.Errorf("request failed"), nil
 	}
 
-	defer resp.Body.Close()
-	body, _ := ioutil.ReadAll(resp.Body)
-
-	return nil, body
+	return nil, resp.Body
 }

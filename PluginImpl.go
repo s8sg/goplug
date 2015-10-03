@@ -1,12 +1,27 @@
-package PluginImpl
+/* Plugin provides all the required interfaces to implement a GoPlugin
+ *
+ * Available API :
+ *
+ * func PluginInit(pluginImplConf PluginImplConf) (*Plugin, error)
+ * >> Initialize a Plugin with specified Configuration
+ *
+ * func (plugin *Plugin) RegisterFunc(funcName string, method func([]byte) []byte)
+ * >> Register a method to be executed for a Specified Path
+ *
+ * func (plugin *Plugin) Start() error
+ * >> Start the execution of the specifiec Plugin
+ *
+ * func (plugin *Plugin) Stop() error
+ * >> Stop the execution of that Plugin.
+ */
+
+package GoPlug
 
 import (
 	"com.ss/goplugin/PluginConn"
-	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"net/http"
-	"os"
 	"strings"
 )
 
@@ -16,26 +31,17 @@ type PluginImplConf struct {
 	Stopper   func([]byte) []byte
 }
 
-type Plugin struct {
+type PluginImpl struct {
 	pluginServer   *PluginConn.PluginServer
 	methodRegistry map[string]func([]byte) []byte
 	sockFile       string
 	addr           string
 }
 
-/* The configuration of the plugin */
-type PluginConf struct {
-	Name      string
-	NameSpace string
-	Url       string
-	Sock      string
-	LazyLoad  bool
-}
-
 /* Init a plugin for a specific Plugin Conf */
-func PluginInit(pluginImplConf PluginImplConf) (*Plugin, error) {
+func PluginInit(pluginImplConf PluginImplConf) (*PluginImpl, error) {
 
-	plugin := &Plugin{}
+	plugin := &PluginImpl{}
 
 	// Load Plugin Configuration
 	pluginConf, confLoadError := loadConfigs(pluginImplConf.ConfFile)
@@ -65,13 +71,13 @@ func PluginInit(pluginImplConf PluginImplConf) (*Plugin, error) {
 }
 
 /* Internal Method: To Register method for the Plugin */
-func (plugin *Plugin) Register() {
+func (plugin *PluginImpl) Register() {
 
 	http.Handle("/", plugin)
 }
 
 /* Internal Method: To handle all http request */
-func (plugin *Plugin) ServeHTTP(res http.ResponseWriter, req *http.Request) {
+func (plugin *PluginImpl) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 
 	methodName := strings.Split(req.URL.Path, "/")[1]
 	//fmt.Printf("URL found: %s\n", methodName)
@@ -95,12 +101,12 @@ func (plugin *Plugin) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 }
 
 /* Method to register function for the plugin */
-func (plugin *Plugin) RegisterFunc(funcName string, method func([]byte) []byte) {
+func (plugin *PluginImpl) RegisterFunc(funcName string, method func([]byte) []byte) {
 	plugin.methodRegistry[funcName] = method
 }
 
 /* Start the Plugin Service */
-func (plugin *Plugin) Start() error {
+func (plugin *PluginImpl) Start() error {
 
 	sockFile := plugin.sockFile
 	addr := plugin.addr
@@ -119,28 +125,10 @@ func (plugin *Plugin) Start() error {
 }
 
 /* Stop the Plugin service */
-func (plugin *Plugin) Stop() error {
+func (plugin *PluginImpl) Stop() error {
 	err := plugin.pluginServer.Shutdown()
 	if err != nil {
 		return err
 	}
 	return nil
-}
-
-// Load configuration from file
-func loadConfigs(fname string) (PluginConf, error) {
-	// open the config file
-	configuration := PluginConf{}
-	file, err := os.Open(fname)
-	if err != nil {
-		return configuration, err
-	}
-	// load the config from file
-	decoder := json.NewDecoder(file)
-	loaderr := decoder.Decode(&configuration)
-	if loaderr != nil {
-		return configuration, loaderr
-	}
-
-	return configuration, nil
 }
