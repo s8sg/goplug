@@ -19,6 +19,7 @@ package GoPlug
 
 import (
 	"com.ss/goplugin/PluginConn"
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -80,7 +81,7 @@ func PluginInit(pluginImplConf PluginImplConf) (*PluginImpl, error) {
 	confFile := filepath.Join(pluginImplConf.PluginLoc, pluginConf.NameSpace+pluginConf.Name+".pconf")
 	pwd, _ := os.Getwd()
 	sockFileLoc := filepath.Join(pwd, pluginImplConf.PluginLoc)
-	pluginConf.Sock = sockFileLoc + pluginConf.NameSpace + pluginConf.Name + ".sock"
+	pluginConf.Sock = filepath.Join(sockFileLoc, pluginConf.NameSpace+pluginConf.Name+".sock")
 
 	// Get Lazyload
 	pluginConf.LazyLoad = pluginImplConf.LazyLoad
@@ -119,6 +120,23 @@ func (plugin *PluginImpl) ServeHTTP(res http.ResponseWriter, req *http.Request) 
 	} else {
 		method, ok := plugin.methodRegistry[methodName]
 		if ok {
+			// Check if the method is Activate
+			if methodName == "Activate" {
+				methodReg := plugin.methodRegistry
+				methods := make([]string, len(methodReg))
+				idx := 0
+				for key, _ := range methodReg {
+					methods[idx] = key
+					idx++
+				}
+				data, marshalErr := json.Marshal(methods)
+				if marshalErr != nil {
+					fmt.Println("failed to marshal methods")
+					res.WriteHeader(400)
+				}
+				// Write the methods list
+				res.Write(data)
+			}
 
 			defer req.Body.Close()
 			body, _ := ioutil.ReadAll(req.Body)

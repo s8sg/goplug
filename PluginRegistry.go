@@ -32,6 +32,7 @@ import (
 	"fmt"
 	//log "github.com/spf13/jwalterweatherman"
 	"com.ss/goplugin/PluginConn"
+	"encoding/json"
 	"io/ioutil"
 	"path/filepath"
 	"sync"
@@ -70,6 +71,8 @@ type Plugin struct {
 	PluginUrl string
 	// The plugin Connection
 	pluginConn *PluginConn.PluginClient
+	// The plugin supported function
+	methods []string
 }
 
 /* PluginRegConf provides the configuration to create a plugin registry
@@ -395,14 +398,21 @@ func (plugin *Plugin) activate() error {
 	requestUrl := pluginUrl + "/Activate"
 	request := &PluginConn.PluginRequest{Url: requestUrl, Body: nil}
 
-	resp, err := pluginConn.Request(request)
-	if err != nil {
-		fmt.Printf("Plugin request could not be completed")
-		return err
+	resp, reqerr := pluginConn.Request(request)
+	if reqerr != nil {
+		fmt.Printf("Plugin request could not be completed: %s", reqerr)
+		return reqerr
 	}
 	if resp.Status != "200 OK" {
-		return fmt.Errorf("request failed")
+		return fmt.Errorf("request failed. Status: %s", resp.Status)
 	}
+
+	// Get the response
+	unmarshalError := json.Unmarshal(resp.Body, &plugin.methods)
+	if unmarshalError != nil {
+		return fmt.Errorf("Json Unmarshal failed: %s", unmarshalError)
+	}
+	fmt.Println("Methods: ", plugin.methods)
 
 	return nil
 }
@@ -427,6 +437,15 @@ func (plugin *Plugin) stop() error {
 	return nil
 }
 
+// Get the list of available method
+func (plugin *Plugin) GetMethods() []string {
+
+	var methods []string
+	methods = plugin.methods
+	return methods
+}
+
+// Executes a specific plugin method
 func (plugin *Plugin) Execute(funcName string, body []byte) (error, []byte) {
 
 	pluginUrl := plugin.PluginUrl
