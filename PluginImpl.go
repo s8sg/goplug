@@ -51,6 +51,7 @@ type PluginImpl struct {
 	methodRegistry map[string]func([]byte) []byte
 	sockFile       string
 	addr           string
+	confFile       string
 }
 
 /* Init a plugin for a specific Plugin Conf */
@@ -100,6 +101,8 @@ func PluginInit(pluginImplConf PluginImplConf) (*PluginImpl, error) {
 
 	plugin.methodRegistry["Activate"] = pluginImplConf.Activator
 	plugin.methodRegistry["Stop"] = pluginImplConf.Stopper
+
+	plugin.confFile = confFile
 
 	return plugin, nil
 }
@@ -178,6 +181,10 @@ func (plugin *PluginImpl) Start() error {
 /* Stop the Plugin service */
 func (plugin *PluginImpl) Stop() error {
 	err := plugin.pluginServer.Shutdown()
+	if err != nil {
+		return err
+	}
+	err = os.Remove(plugin.confFile)
 	if err != nil {
 		return err
 	}
