@@ -342,7 +342,7 @@ func (pluginReg *PluginReg) LoadPlugin(pluginName string, pluginNamespace string
 	fmt.Println("Plugin Url: ", conf.Url)
 	fmt.Println("Plugin Sock: ", conf.Sock)
 
-	sockFile := filepath.Join(pluginReg.PluginLocation, conf.Sock)
+	sockFile := conf.Sock
 
 	// Initiate Connection to a Plugin
 	pluginConn, connErr := PluginConn.NewPluginClient(sockFile)
