@@ -5,7 +5,7 @@
  * func PluginInit(pluginImplConf PluginImplConf) (*Plugin, error)
  * >> Initialize a Plugin with specified Configuration
  *
- * func (plugin *Plugin) RegisterFunc(funcName string, method func([]byte) []byte)
+ * func (plugin *Plugin) RegisterMethod(funcName string, method func([]byte) []byte)
  * >> Register a method to be executed for a Specified Path
  *
  * func (plugin *Plugin) Start() error
@@ -90,8 +90,8 @@ func PluginInit(pluginImplConf PluginImplConf) (*PluginImpl, error) {
 	// Load Plugin Configuration
 	confSaveError := saveConfigs(confFile, pluginConf)
 	if confSaveError != nil {
-		fmt.Println("Configuration save failed to the file: ", confFile, ", Error: ", confSaveError)
-		return nil, fmt.Errorf("Failed to save Configuration")
+		//fmt.Println("Configuration save failed to the file: ", confFile, ", Error: ", confSaveError)
+		return nil, fmt.Errorf("Failed to save Configuration in file")
 	}
 	plugin.sockFile = pluginConf.Sock
 	plugin.addr = pluginConf.Url
@@ -134,7 +134,7 @@ func (plugin *PluginImpl) ServeHTTP(res http.ResponseWriter, req *http.Request) 
 				}
 				data, marshalErr := json.Marshal(methods)
 				if marshalErr != nil {
-					fmt.Println("failed to marshal methods")
+					//fmt.Println("failed to marshal methods")
 					res.WriteHeader(400)
 				}
 				// Write the methods list
@@ -155,7 +155,7 @@ func (plugin *PluginImpl) ServeHTTP(res http.ResponseWriter, req *http.Request) 
 }
 
 /* Method to register function for the plugin */
-func (plugin *PluginImpl) RegisterFunc(funcName string, method func([]byte) []byte) {
+func (plugin *PluginImpl) RegisterMethod(funcName string, method func([]byte) []byte) {
 	plugin.methodRegistry[funcName] = method
 }
 
@@ -168,7 +168,7 @@ func (plugin *PluginImpl) Start() error {
 	config := &PluginConn.ServerConfiguration{Registrar: plugin, SockFile: sockFile, Addr: addr}
 	server, err := PluginConn.NewPluginServer(config)
 	if err != nil {
-		fmt.Printf("Failed to Create server\n")
+		//fmt.Printf("Failed to Create server\n")
 		return fmt.Errorf("Failed to Create the server")
 	}
 	plugin.pluginServer = server

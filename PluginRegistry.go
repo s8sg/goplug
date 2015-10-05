@@ -28,11 +28,11 @@
 package GoPlug
 
 import (
-	"errors"
-	"fmt"
-	//log "github.com/spf13/jwalterweatherman"
 	"com.ss/goplugin/PluginConn"
 	"encoding/json"
+	"errors"
+	"fmt"
+	log "github.com/spf13/jwalterweatherman"
 	"io/ioutil"
 	"path/filepath"
 	"sync"
@@ -40,6 +40,9 @@ import (
 )
 
 var (
+	// An error to indicate the plugin not discovered
+	ConfigLoadFailed = errors.New("Configuration load failed")
+
 	// An error to indicate the plugin not discovered
 	PluginNotDiscovered = errors.New("Plugin is not Discovered")
 
@@ -160,7 +163,7 @@ func discoverPlugin(wg *sync.WaitGroup, pluginReg *PluginReg) {
 		// Check the plugin location for a new plugin
 		files, dirReadError := ioutil.ReadDir(pluginLocation)
 		if dirReadError != nil {
-			fmt.Printf("Invalid Directory: %s\n", pluginLocation)
+			//fmt.Printf("Invalid Directory: %s\n", pluginLocation)
 			break
 		}
 		// Check for range of files in the location
@@ -178,27 +181,23 @@ func discoverPlugin(wg *sync.WaitGroup, pluginReg *PluginReg) {
 				confFile := filepath.Join(pluginLocation, name)
 				pluginConf, confLoadError := loadConfigs(confFile)
 				if confLoadError != nil {
-					fmt.Println("Configuration load failed for file: ", confFile, ", Error: ", confLoadError)
+					log.ERROR.Println("Configuration load failed for file: ", confFile, ", Error: ", confLoadError)
 					continue
 				}
 				appPlugin := pluginConf.NameSpace + pluginConf.Name
 				// Check if in the discovered plugin list
 				_, ok := pluginReg.DiscoveredPlugin[appPlugin]
 				if !ok {
-					fmt.Printf("AppPlugin: %s\n", appPlugin)
-
 					// Store the config in the AppPlugin
 					pluginReg.DiscoveredPlugin[appPlugin] = pluginConf
 
-					fmt.Printf("Plugin %s is discovered\n", appPlugin)
 					// Check the lazyLoad conf.
 					// if lazy load is disabled. Load it
 					if pluginConf.LazyLoad == false {
 						_, loadErr := pluginReg.LoadPlugin(pluginConf.Name, pluginConf.NameSpace)
 						if loadErr != nil {
-							fmt.Printf("Plugin %s load failed: %s\n", loadErr)
+							log.ERROR.Println("Plugin load failed: ", loadErr)
 						}
-						fmt.Printf("Plugin %s is loaded")
 					}
 				}
 			}
@@ -236,10 +235,8 @@ func (pluginReg *PluginReg) isDiscovered(appPlugin string) bool {
 func (pluginReg *PluginReg) IsLoaded(pluginname string, namespace string) bool {
 
 	appplugin := namespace + pluginname
-	fmt.Printf("going to take lock\n")
 	pluginReg.RegAccess.Lock()
 	defer pluginReg.RegAccess.Unlock()
-	fmt.Printf("lock aquired\n")
 	return pluginReg.isLoaded(appplugin)
 }
 
@@ -262,10 +259,8 @@ func (pluginReg *PluginReg) UnloadPlugin(plugin *Plugin) error {
 	appPlugin := plugin.PluginNameSpace + plugin.PluginName
 
 	// Initiate Locking
-	fmt.Printf("Going to take lock\n")
 	pluginReg.RegAccess.Lock()
 	defer pluginReg.RegAccess.Unlock()
-	fmt.Printf("Lock aquired\n")
 
 	// get the Plugin that is already loaded
 	/*
@@ -278,7 +273,7 @@ func (pluginReg *PluginReg) UnloadPlugin(plugin *Plugin) error {
 	// Send the Stop request
 	stopErr := plugin.stop()
 	if stopErr != nil {
-		fmt.Printf("Failed to stop the plugin")
+		log.ERROR.Println("Failed to stop the plugin")
 	}
 
 	// Close the connection
@@ -300,8 +295,6 @@ func (pluginReg *PluginReg) LoadPlugin(pluginName string, pluginNamespace string
 	// Generate Discovered plugin name
 	appPlugin := pluginNamespace + pluginName
 
-	fmt.Printf("Plugin: %s\n", appPlugin)
-
 	if pluginReg.AutoDiscover == false {
 		var confLoadError error
 		pluginLocation := pluginReg.PluginLocation
@@ -309,14 +302,12 @@ func (pluginReg *PluginReg) LoadPlugin(pluginName string, pluginNamespace string
 		confFile := filepath.Join(pluginLocation, pluginName+pluginReg.ConfExt)
 		conf, confLoadError = loadConfigs(confFile)
 		if confLoadError != nil {
-			fmt.Println("Configuration load failed for file: ", confFile, ", Error: ", confLoadError)
-			return nil, PluginNotDiscovered
+			return nil, ConfigLoadFailed
 		}
 
 		// Store the config in the AppPlugin
 		pluginReg.DiscoveredPlugin[appPlugin] = conf
 
-		fmt.Printf("Plugin %s is discovered\n", appPlugin)
 	} else {
 		var discovered bool
 		// Check if Plugin is already discovered
@@ -327,27 +318,19 @@ func (pluginReg *PluginReg) LoadPlugin(pluginName string, pluginNamespace string
 	}
 
 	// Initiate Locking
-	fmt.Printf("Going to take lock\n")
 	pluginReg.RegAccess.Lock()
 	defer pluginReg.RegAccess.Unlock()
-	fmt.Printf("Lock aquired\n")
 
 	// Check if Plugin is already loaded
 	if pluginReg.isLoaded(appPlugin) {
 		return nil, PluginLoaded
 	}
 
-	fmt.Println("Plugin name: ", conf.Name)
-	fmt.Println("Plugin nameSpace: ", conf.NameSpace)
-	fmt.Println("Plugin Url: ", conf.Url)
-	fmt.Println("Plugin Sock: ", conf.Sock)
-
 	sockFile := conf.Sock
 
 	// Initiate Connection to a Plugin
 	pluginConn, connErr := PluginConn.NewPluginClient(sockFile)
 	if connErr != nil {
-		fmt.Printf("Plugin Load Failed: %v", connErr)
 		return nil, PluginConnFailed
 	}
 
@@ -358,12 +341,9 @@ func (pluginReg *PluginReg) LoadPlugin(pluginName string, pluginNamespace string
 	plugin.pluginConn = pluginConn
 	pluginReg.PluginReg[appPlugin] = plugin
 
-	fmt.Printf("Loaded plugin : %s, with the configuration of: %v", conf.Name, plugin)
-
 	// Activate the plugin
 	activateErr := plugin.activate()
 	if activateErr != nil {
-		fmt.Printf("Plugin activation failed: %s", activateErr)
 		return plugin, activateErr
 	}
 
@@ -380,11 +360,9 @@ func (pluginReg *PluginReg) GetPlugin(pluginName string, pluginNamespace string)
 }
 
 func (pluginReg *PluginReg) getPlugin(appPlugin string) *Plugin {
-	fmt.Printf("Getting plugin for: %s\n", appPlugin)
 	/* Check if the plugin is Loaded in the plugin map */
 	plugin, pluginFound := pluginReg.PluginReg[appPlugin]
 	if pluginFound {
-		fmt.Printf("plugin found : %s with values: %v", appPlugin, plugin)
 		return plugin
 	}
 	return nil
@@ -400,7 +378,6 @@ func (plugin *Plugin) activate() error {
 
 	resp, reqerr := pluginConn.Request(request)
 	if reqerr != nil {
-		fmt.Printf("Plugin request could not be completed: %s", reqerr)
 		return reqerr
 	}
 	if resp.Status != "200 OK" {
@@ -427,7 +404,6 @@ func (plugin *Plugin) stop() error {
 
 	resp, err := pluginConn.Request(request)
 	if err != nil {
-		fmt.Printf("Plugin request could not be completed")
 		return err
 	}
 	if resp.Status != "200 OK" {
@@ -456,7 +432,6 @@ func (plugin *Plugin) Execute(funcName string, body []byte) (error, []byte) {
 
 	resp, err := pluginConn.Request(request)
 	if err != nil {
-		fmt.Printf("Plugin request could not be completed")
 		return err, nil
 	}
 	if resp.Status != "200 OK" {

@@ -2,7 +2,6 @@ package GoPlug
 
 import (
 	"encoding/json"
-	"fmt"
 	"os"
 )
 
@@ -45,12 +44,10 @@ func saveConfigs(fileName string, pluginConf PluginConf) error {
 		return encodeErr
 	}
 	// Write the data to the file
-	dataSize, writeErr := file.Write(encodedData)
+	_, writeErr := file.Write(encodedData)
 	if writeErr != nil {
 		return writeErr
 	}
-
-	fmt.Printf("wrote %d bytes\n", dataSize)
 
 	return nil
 }
