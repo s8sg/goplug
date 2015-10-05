@@ -22,13 +22,27 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
 )
 
+/* The plugin impleentaion configuration  */
 type PluginImplConf struct {
-	ConfFile  string
+	// Plugin location path
+	PluginLoc string
+	// The Name of the plugin
+	Name string
+	// The namespace of the plugin [optional - default: nil]
+	Namespace string
+	// The URL to reach the plugin over http (ie unix://ExamplePlug) [optional - default: unix://<Namespace><Name>]
+	Url string
+	// The LazyLoad configuration [optional - default: false]
+	LazyLoad bool
+	// The Function that would be called on Plugin Activation
 	Activator func([]byte) []byte
-	Stopper   func([]byte) []byte
+	// The Function that would be called on Plugin DeActivation
+	Stopper func([]byte) []byte
 }
 
 type PluginImpl struct {
@@ -42,24 +56,43 @@ type PluginImpl struct {
 func PluginInit(pluginImplConf PluginImplConf) (*PluginImpl, error) {
 
 	plugin := &PluginImpl{}
+	pluginConf := PluginConf{}
+
+	// Check pluginImplConf
+	if pluginImplConf.PluginLoc == "" {
+		return nil, fmt.Errorf("Invalid Configuration : PluginLoc file should be specified")
+	}
+
+	// Check name
+	if pluginImplConf.Name == "" {
+		return nil, fmt.Errorf("Invalid Configuration : Name should be specified")
+	}
+	pluginConf.Name = pluginImplConf.Name
+	pluginConf.NameSpace = pluginImplConf.Namespace
+
+	// Check url
+	pluginConf.Url = pluginImplConf.Url
+	if pluginImplConf.Url == "" {
+		pluginConf.Url = "unix://" + pluginConf.NameSpace + pluginConf.Name
+	}
+
+	// Get conf file and Sock
+	confFile := filepath.Join(pluginImplConf.PluginLoc, pluginConf.NameSpace+pluginConf.Name+".pconf")
+	pwd, _ := os.Getwd()
+	sockFileLoc := filepath.Join(pwd, pluginImplConf.PluginLoc)
+	pluginConf.Sock = sockFileLoc + pluginConf.NameSpace + pluginConf.Name + ".sock"
+
+	// Get Lazyload
+	pluginConf.LazyLoad = pluginImplConf.LazyLoad
 
 	// Load Plugin Configuration
-	pluginConf, confLoadError := loadConfigs(pluginImplConf.ConfFile)
-	if confLoadError != nil {
-		fmt.Println("Configuration load failed for file: ", pluginImplConf.ConfFile, ", Error: ", confLoadError)
-		return nil, fmt.Errorf("Failed to load Configuration")
+	confSaveError := saveConfigs(confFile, pluginConf)
+	if confSaveError != nil {
+		fmt.Println("Configuration save failed to the file: ", confFile, ", Error: ", confSaveError)
+		return nil, fmt.Errorf("Failed to save Configuration")
 	}
 	plugin.sockFile = pluginConf.Sock
 	plugin.addr = pluginConf.Url
-
-	// Load Plugin value
-	/*
-		fmt.Printf("Name: %s\n", pluginConf.Name)
-		fmt.Printf("NameSpace: %s\n", pluginConf.NameSpace)
-		fmt.Printf("Url: %s\n", pluginConf.Url)
-		fmt.Printf("Sock: %s\n", pluginConf.Sock)
-		fmt.Printf("LazyLoad: %d\n", pluginConf.LazyLoad)
-	*/
 
 	// Initiate the Method Registry
 	plugin.methodRegistry = make(map[string]func([]byte) []byte)
