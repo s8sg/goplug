@@ -8,6 +8,7 @@ GoPlug is a pure Go Plugin libary project that provides flexibility, Loose Coupl
 ### Usage
 
 #### Step 1 : Get It
+To get the GoPlug install Go and execute the below command 
 ```
 go get github.com/swarvanusg/GoPlug
 ```
@@ -18,26 +19,39 @@ GoPlug plugin lifecycle is quite simple as it consist only three state.
 2. **Discovered/Installed** : Plugin is discoved and ready to be started
 3. **Started/Loaded** : Plugin is started or Loaded for serving request
 
+###### Plugin Registry
 Each of the application creates a Plugin Registry to manage Plugins. Plugin Registry is based on plugin discovery service that provide api to search, load and unload plugin to/from registry.
 
 Auto discovery service at plugin registry could be disabled resulting plugin to be discovered at loading time.
 
+###### Plugin
 Each plugin makes itself available for the discovery service, and while discovered it is loaded by the application. On a successful loading start() is called and on a successful uploading stop() is called
 
-Lazy start could be enabled to make plugin loaded by explicit call rather than at discovery. 
-
+Lazy start could be enabled to make plugin loaded by explicit call to Plugin Registry rather than at discovery. 
 
 #### Step 3: Use it  
-
+##### Plugin Conf
+___
+Plugin conf (.pconf) defines the plugin properties. It is created by the Plugins at Plugin startup and loaded by the Application. 
+###### Example.pconf
+```
+    {
+        "Name" : NameOfPlugin
+        "NameSpace" : NamespaceOfPlugin
+        "Url" : unix://PluginUrl
+        "sock" : unixSockLocation.sock
+        "LazyLoad" : false
+    }
+```
 ##### Application That Use Plugins
 ___
-Plugin registry is initialized with the plugin location where it will search for plugin conf **(.pconf)**, along with the Auto Discover settings.   
+Plugin registry is initialized with the plugin location where it will search for plugin conf **(.pconf)**, along with the Auto Discover setting. If auto discovery is enabled the discover service starts and search for new plugin, while in other case of discovery service not running, plugin gets discovered while loading (via Explicit call to LoadPlugin) if available.
 ```
     plugRegConf := GoPlug.PluginRegConf{PluginLocation: "./PluginLoc", AutoDiscover: true}
     /* Initialize a Plugin Registry that will search location "./PluginLoc" for '.pconf' file */  
     pluginReg, err := GoPlug.PluginRegInit(plugRegConf)
 ```
-If Plugin is Configured for lazy load plugin should be loaded explicitly. In case of discovery service not running, plugin gets discovered before loading if available. 
+Lazyload is a feature that prevents auto loading of a plugin when it is discovered. If Plugin is Configured for lazy load plugin should be loaded explicitly when needed by the user.  
 
 ```
     plugin, err := pluginReg.LoadPlugin("name", "namespace")
@@ -46,7 +60,7 @@ Each plugin is identified by the plugin name and namespace
 ```
     plugin := pluginReg.GetPlugin("name", "namespace")
 ```
-Plugin can be searched for available method (registered method by plugin implementation)
+Plugin can be searched for available methods (registered methods by Plugin implementation)
 ```
     methodList := plugin.GetMethods()
 ```
@@ -92,11 +106,14 @@ plugin.stop()
 #### Step 3: How It Works
 Plugins runs a different process that sould be started explicitly. Unix domain socket is used for IPC where the communication is based on HTTP request response model. 
 ###### Step by Step:
-1. Plugin start and open a Unix domain socket and listen
-2. It puts the .pconf file in the location for discovery
-3. Plugin Registry discover the .pconf and load the configuration to get the UNIX socket file
-4. Connection using UNIX socket is created by the Plugin Registry
-5. Http request is made as per the methods over the connection
+1. At start of the Plugin it opens a Unix domain socket and listen for connection
+2. Once it initialized it puts the .pconf file in a specific location of Plugin Discovery
+3. Plugin Registry discover the .pconf and load the configuration to get the properties and UNIX sock
+4. Plugin Registry initialize the Connections using UNIX sock and it loads the Plugin information 
+5. Http request is made as per the methods Executed over the connection
+
+### Future Scope
+As GoPlug Plugin are independent process and the communication is based on Unix socket and Http. Plugin could be developed using any programming language. In future GoPlug Plugin Implementation library should be implementated in different languages.  
 
 ### More Information
 This is an early release. I’ve been using it for a while and this is working fine. I like this one pretty well, but no guarantees
