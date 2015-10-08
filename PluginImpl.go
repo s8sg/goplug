@@ -18,9 +18,9 @@
 package GoPlug
 
 import (
-	"com.ss/goplugin/PluginConn"
 	"encoding/json"
 	"fmt"
+	PluginConn "github.com/swarvanusg/GoPlug/PluginConn"
 	"io/ioutil"
 	"net/http"
 	"os"

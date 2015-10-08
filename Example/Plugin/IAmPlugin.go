@@ -1,8 +1,8 @@
 package main
 
 import (
-	"com.ss/GoPlugin_test/GoPlug"
 	"fmt"
+	GoPlug "github.com/swarvanusg/GoPlug"
 	"os"
 	"os/signal"
 	"syscall"

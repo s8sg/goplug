@@ -28,11 +28,11 @@
 package GoPlug
 
 import (
-	"com.ss/goplugin/PluginConn"
 	"encoding/json"
 	"errors"
 	"fmt"
 	log "github.com/spf13/jwalterweatherman"
+	PluginConn "github.com/swarvanusg/GoPlug/PluginConn"
 	"io/ioutil"
 	"path/filepath"
 	"sync"

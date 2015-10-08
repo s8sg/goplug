@@ -55,7 +55,6 @@ func (pluginConn *PluginClient) Request(request *PluginRequest) (*PluginResponse
 			fmt.Printf("Request Could not be prepared")
 			return nil, newReqErr
 		}
-		//req.Header.Set("X-Custom-Header", "myvalue")
 		req.Header.Set("Content-Type", "application/json")
 	} else {
 		req, newReqErr = http.NewRequest("POST", url, nil)
@@ -63,8 +62,6 @@ func (pluginConn *PluginClient) Request(request *PluginRequest) (*PluginResponse
 			fmt.Printf("Request Could not be prepared")
 			return nil, newReqErr
 		}
-		//req.Header.Set("X-Custom-Header", "myvalue")
-		//req.Header.Set("Content-Type", "application/json")
 	}
 	conn := pluginConn.Conn
 
