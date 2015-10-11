@@ -20,6 +20,7 @@ package GoPlug
 import (
 	"encoding/json"
 	"fmt"
+	log "github.com/spf13/jwalterweatherman"
 	PluginConn "github.com/swarvanusg/GoPlug/PluginConn"
 	"io/ioutil"
 	"net/http"
@@ -53,6 +54,9 @@ type PluginImpl struct {
 	addr           string
 	confFile       string
 }
+
+// channel list per callback
+var channelMap map[string]chan []byte
 
 /* Init a plugin for a specific Plugin Conf */
 func PluginInit(pluginImplConf PluginImplConf) (*PluginImpl, error) {
@@ -101,10 +105,37 @@ func PluginInit(pluginImplConf PluginImplConf) (*PluginImpl, error) {
 
 	plugin.methodRegistry["Activate"] = pluginImplConf.Activator
 	plugin.methodRegistry["Stop"] = pluginImplConf.Stopper
+	plugin.methodRegistry["RegisterCallback"] = callbackExecute
 
 	plugin.confFile = confFile
 
 	return plugin, nil
+}
+
+/* Internal Method: To implement the callback */
+func callbackExecute(data []byte) []byte {
+
+	// get the function name
+	var funcName string
+	err := json.Unmarshal(data, &funcName)
+	if err != nil {
+		log.FATAL.Fatalf("Failed to get the func name: %v", err)
+		return nil
+	}
+
+	// Create a new channel
+	channel := make(chan []byte, 0)
+
+	// Put the channel in the channelmap
+	fmt.Printf("Put the channel in the channelmap for: %s \n", funcName)
+	channelMap[funcName] = channel
+
+	fmt.Println("Waiting for data from channel")
+	// Wait for data from channel
+	returnData := <-channel
+	fmt.Println("Got data from channel: ", string(returnData))
+
+	return returnData
 }
 
 /* Internal Method: To Register method for the Plugin */
@@ -155,8 +186,29 @@ func (plugin *PluginImpl) ServeHTTP(res http.ResponseWriter, req *http.Request) 
 }
 
 /* Method to register function for the plugin */
-func (plugin *PluginImpl) RegisterMethod(funcName string, method func([]byte) []byte) {
+func (plugin *PluginImpl) RegisterMethod(method func([]byte) []byte) {
+	// Get the name of the method
+	funcName := GetFuncName(method)
 	plugin.methodRegistry[funcName] = method
+}
+
+/* Method to notify a registered callback */
+func (plugin *PluginImpl) Notify(callBack string, data []byte) error {
+
+	fmt.Println("Notifying the callback: ", callBack)
+	// Pnthread : on getting the notifcation and user data it puts the data on the channel
+	// Get the channel from global channel map
+	channel, ok := channelMap[callBack]
+	if !ok {
+		return fmt.Errorf("Callback could not be found for: %s", callBack)
+	}
+	fmt.Println("Sending data to channel")
+	fmt.Println("Sending data to channel")
+	// Send the data to the channel
+	channel <- data
+	fmt.Println("data sent on channel")
+
+	return nil
 }
 
 /* Start the Plugin Service */
@@ -189,4 +241,8 @@ func (plugin *PluginImpl) Stop() error {
 		return err
 	}
 	return nil
+}
+
+func init() {
+	channelMap = make(map[string]chan []byte)
 }

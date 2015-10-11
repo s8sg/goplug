@@ -76,6 +76,8 @@ type Plugin struct {
 	pluginConn *PluginConn.PluginClient
 	// The plugin supported function
 	methods []string
+	// The plugin registered callback
+	callbacks map[string]bool
 }
 
 /* PluginRegConf provides the configuration to create a plugin registry
@@ -339,6 +341,7 @@ func (pluginReg *PluginReg) LoadPlugin(pluginName string, pluginNamespace string
 	plugin.PluginNameSpace = conf.NameSpace
 	plugin.PluginUrl = conf.Url
 	plugin.pluginConn = pluginConn
+	plugin.callbacks = make(map[string]bool)
 	pluginReg.PluginReg[appPlugin] = plugin
 
 	// Activate the plugin
@@ -349,6 +352,8 @@ func (pluginReg *PluginReg) LoadPlugin(pluginName string, pluginNamespace string
 
 	return plugin, nil
 }
+
+/* Register callback that will be called on notification */
 
 // Get a plugin from the Plugin registry
 func (pluginReg *PluginReg) GetPlugin(pluginName string, pluginNamespace string) *Plugin {
@@ -419,6 +424,60 @@ func (plugin *Plugin) GetMethods() []string {
 	var methods []string
 	methods = plugin.methods
 	return methods
+}
+
+/* Register a callback */
+func (plugin *Plugin) RegisterCallback(function func([]byte)) error {
+	funcName := GetFuncName(function)
+	if funcName == "" {
+		return fmt.Errorf("Failed to get the method name")
+	}
+	// Check if the callback is already registered
+	_, ok := plugin.callbacks[funcName]
+	if ok {
+		return fmt.Errorf("The callback is already Registerd")
+	}
+	// Put the callback function in the callbacks map
+	plugin.callbacks[funcName] = false
+
+	// Start the execution thread
+	go plugin.executeCallback(funcName, function)
+
+	return nil
+
+}
+
+// Internal:  thread body to execute a callback request
+func (plugin *Plugin) executeCallback(funcName string, function func([]byte)) {
+	// wrap the method name in bytes
+	data, marshalErr := json.Marshal(funcName)
+	if marshalErr != nil {
+		log.ERROR.Printf("Json Marshal Failed to encode method name")
+		return
+	}
+
+	pluginUrl := plugin.PluginUrl
+	pluginConn := plugin.pluginConn
+
+	requestUrl := pluginUrl + "/" + "RegisterCallback"
+	request := &PluginConn.PluginRequest{Url: requestUrl, Body: data}
+
+	//	for plugin.callbacks[funcName] == false {
+	for true {
+		resp, err := pluginConn.Request(request)
+		if err != nil {
+			log.FATAL.Fatalf("Failed to sent CallBack Execution Request: %v", err)
+			return
+		}
+		if resp.Status != "200 OK" {
+			log.FATAL.Fatalf("Failed to sent callback request")
+			return
+		}
+		// get the data from resp
+		callBackInput := resp.Body
+		// call the callback
+		function(callBackInput)
+	}
 }
 
 // Executes a specific plugin method

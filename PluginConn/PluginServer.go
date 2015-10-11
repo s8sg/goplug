@@ -55,6 +55,7 @@ func NewPluginServer(config *ServerConfiguration) (*PluginServer, error) {
 // Start the http Server
 func (s *PluginServer) Start() {
 
+	/* Each request is served in a separate thread */
 	go http.Serve(s.Listener, nil)
 
 }

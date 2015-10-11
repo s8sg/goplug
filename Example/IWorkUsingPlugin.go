@@ -45,12 +45,25 @@ func main() {
 	methods := plugin1.GetMethods()
 	/* get the list of method */
 	fmt.Println("Methods: ", methods, "\n")
-	for _, value := range methods {
-		plugin1.Execute(value, nil)
+	/*
+		for _, value := range methods {
+			plugin1.Execute(value, nil)
+		}
+	*/
+
+	/* Wait for input */
+	fmt.Print("Press 'Enter' to Register Callback...")
+	bufio.NewReader(os.Stdin).ReadBytes('\n')
+
+	/* Register a callback */
+	err := plugin1.RegisterCallback(callBack)
+	if err != nil {
+		fmt.Println("Call back registration failed: ", err)
+		return
 	}
 
 	/* Wait for input */
-	fmt.Print("Press 'Enter' to continue...")
+	fmt.Print("Press 'Enter' to unload plugin")
 	bufio.NewReader(os.Stdin).ReadBytes('\n')
 
 	/* unload the Plugin */
@@ -62,4 +75,8 @@ func main() {
 
 	pluginReg.Stop()
 	pluginReg.WaitForStop()
+}
+
+func callBack(data []byte) {
+	fmt.Println("Executing callback: ", string(data))
 }

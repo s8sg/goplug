@@ -3,6 +3,8 @@ package GoPlug
 import (
 	"encoding/json"
 	"os"
+	"reflect"
+	"runtime"
 )
 
 type PluginConf struct {
@@ -11,6 +13,11 @@ type PluginConf struct {
 	Url       string
 	Sock      string
 	LazyLoad  bool
+}
+
+// Get the name of the function
+func GetFuncName(i interface{}) string {
+	return runtime.FuncForPC(reflect.ValueOf(i).Pointer()).Name()
 }
 
 // load the config data from the file
