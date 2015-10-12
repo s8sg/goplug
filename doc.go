@@ -2,7 +2,6 @@
 
 
 < GoPlug >
-
  --------
         \   ^__^
          \  (oo)\_______
@@ -18,10 +17,10 @@ plugin architecture that is independent of the platform.
 
 Lifecycle
 
-GoPlug plugin lifecycle is quite simple as it consist only three state. 
-1. Stopped : Plugin is not yet started or stopped 
-2. Discovered/Installed : Plugin is discoved and ready to be started 
-3. Started/Loaded : Plugin is started or Loaded for serving request
+GoPlug plugin lifecycle is quite simple as it consist only three state.  
+1. Stopped : Plugin is not yet started or stopped  
+2. Discovered/Installed : Plugin is discoved and ready to be started  
+3. Started/Loaded : Plugin is started or Loaded for serving request  
 
 
 Plugin Registry
@@ -50,11 +49,11 @@ domain socket is used for IPC where the communication is based on HTTP
 request response model.
 
 Step by Step:
-1> At start of the Plugin it opens a Unix domain socket and listen for connection
-2> Once it initialized it puts the .pconf file in a specific location of Plugin Discovery
-3> Plugin Registry discover the .pconf and load the configuration to get the properties and UNIX sock
-4> Plugin Registry initialize the Connections using UNIX sock and it loads the Plugin information
-5> Http request is made as per the methods Executed over the connection
+1> At start of the Plugin it opens a Unix domain socket and listen for connection  
+2> Once it initialized it puts the .pconf file in a specific location of Plugin Discovery  
+3> Plugin Registry discover the .pconf and load the configuration to get the properties and UNIX sock  
+4> Plugin Registry initialize the Connections using UNIX sock and it loads the Plugin information  
+5> Http request is made as per the methods Executed over the connection  
 
 */
 package GoPlug
