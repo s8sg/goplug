@@ -11,6 +11,8 @@
 
 GoPlug is a pure Go Plugin libary project that provides flexibility, Loose Coupling and moduler approach of Building Software in/around Go. The goal of the project is to provide a simple, fast and a reliable plugin architecture that is independent of the platform. 
 
+Detailed API Listing : [GpPlug GoDoc] (https://godoc.org/github.com/swarvanusg/GoPlug)
+
 ### Version
 0.1.0
 
@@ -112,6 +114,8 @@ Plugin stop makes the plugin to be stopped and unavailable from the Plugin Reg s
 ```
 plugin.stop()
 ```
+[More ...](https://godoc.org/github.com/swarvanusg/GoPlug)
+
 #### Step 4: How It Works
 Plugins runs a different process that sould be started explicitly. Unix domain socket is used for IPC where the communication is based on HTTP request response model. 
 ###### Step by Step:
