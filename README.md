@@ -125,6 +125,9 @@ Plugins runs a different process that sould be started explicitly. Unix domain s
 4. Plugin Registry initialize the Connections using UNIX sock and it loads the Plugin information 
 5. Http request is made as per the methods Executed over the connection
 
+### Current Status
+GoPlug is unstable and in active development and testing
+
 ### Future Scope
 As GoPlug Plugin are independent process and the communication is based on Unix socket and Http. Plugin could be developed using any programming language. In future GoPlug Plugin Implementation library should be implementated in different languages.  
 
