@@ -197,15 +197,6 @@ func (plugin *PluginImpl) Notify(callBack string, data []byte) error {
 /* Used to start the Plugin Service. It makes a plugin operable and discoverable by application */
 func (plugin *PluginImpl) Start() error {
 
-	// Make the plugin available for dixcovery by saving the configuration
-	// Save Plugin Configuration
-	confFile := plugin.confFile
-	pluginConf := plugin.conf
-	confSaveError := saveConfigs(confFile, *pluginConf)
-	if confSaveError != nil {
-		return fmt.Errorf("Failed to save Configuration in file")
-	}
-
 	sockFile := plugin.sockFile
 	addr := plugin.addr
 	// Create the Plugin Server
@@ -216,7 +207,17 @@ func (plugin *PluginImpl) Start() error {
 	}
 	plugin.pluginServer = server
 
+	// Start the server (it will add the sock file in proper position)
 	plugin.pluginServer.Start()
+	
+	// Make the plugin available for dixcovery by saving the configuration
+	// Save Plugin Configuration
+	confFile := plugin.confFile
+	pluginConf := plugin.conf
+	confSaveError := saveConfigs(confFile, *pluginConf)
+	if confSaveError != nil {
+		return fmt.Errorf("Failed to save Configuration in file")
+	}
 
 	return nil
 }
