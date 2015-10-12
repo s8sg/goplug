@@ -15,8 +15,8 @@ type PluginConf struct {
 	LazyLoad  bool
 }
 
-// Get the name of the function
-func GetFuncName(i interface{}) string {
+// Get the name of the function by a function reference
+func getFuncName(i interface{}) string {
 	return runtime.FuncForPC(reflect.ValueOf(i).Pointer()).Name()
 }
 

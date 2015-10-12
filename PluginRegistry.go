@@ -1,28 +1,5 @@
 /* PluginReg is the Plugin Registry That keeps track of the Plugin
  * Which are Discovered, Loaded, and Activated
- *
- * Available API :
- *
- * func PluginRegInit(regConf PluginRegConf) (*PluginReg, error)
- * >> It Intialize a new plugin reg as per the PluginRegConf specified
- *
- * func (pluginReg *PluginReg) IsDiscovered(pluginname string, namespace string) bool
- * >> Check if a plugin is already discovered
- *
- * func (pluginReg *PluginReg) IsLoaded(pluginname string, namespace string) bool
- * >> Check if a plugin is already Loaded
- *
- * func (pluginReg *PluginReg) LoadPlugin(pluginName string, pluginNamespace string) (*Plugin, error)
- * >> Load and activate a plugin manually if it is discovered
- *
- * func (pluginReg *PluginReg) UnloadPlugin(plugin *Plugin) error
- * >> Unload and stop a plugin manually if it is loaded
- *
- * func (pluginReg *PluginReg) GetPlugin(pluginName string, pluginNamespace string) *Plugin
- * >> Function to Get a Plugin When it is Loaded
- *
- * func (plugin *Plugin) Execute(funcName string, body []byte) (error, []byte)
- * >> Execute a function with given data set
  */
 
 package GoPlug
@@ -52,16 +29,10 @@ var (
 	// An error to indicate the plugin is already loaded
 	PluginLoaded = errors.New("Plugin is already loaded")
 
-	// Monitor Type Plugin
-	MonitorPluginT = "Monitor"
-
-	// Manage Type Plugin
-	ManagePluginT = "Manage"
-
 	// Conf Extension
-	DefaultConfExt = ".conf"
+	DefaultConfExt = ".pconf"
 
-	// Default Interval for Discovery search
+	// Default Interval for Discovery search in MS
 	DefaultInterval = 1000
 )
 
@@ -114,9 +85,9 @@ type PluginReg struct {
 	AutoDiscover bool
 }
 
-/* Function is called to inititate the PluginRegistry
- * It initiate and return a plugin registry.
- * If Discovery is enabled the DiscoverService Starts */
+/* Function is called to inititate the PluginRegistry as per the Plugin registry Configuration.
+   It initiate and return a plugin registry pointer that could be used to manage plugins.
+   If Discovery is enabled the DiscoverService Starts */
 func PluginRegInit(regConf PluginRegConf) (*PluginReg, error) {
 
 	var wg sync.WaitGroup
@@ -146,12 +117,12 @@ func PluginRegInit(regConf PluginRegConf) (*PluginReg, error) {
 	return pluginReg, nil
 }
 
-/* Function to wait for PluginReg Discovery service to be stopped */
+/* Function to wait for PluginReg Discovery service to be stopped. If its not started then it return immediately */
 func (pluginReg *PluginReg) WaitForStop() {
 	pluginReg.Wg.Wait()
 }
 
-/* Function to stop the PluginReg Discovery service */
+/* Function to stop the Plugin Registry service. It stops the discovery service */
 func (pluginReg *PluginReg) Stop() {
 	pluginReg.StopFlag = true
 }
@@ -165,7 +136,6 @@ func discoverPlugin(wg *sync.WaitGroup, pluginReg *PluginReg) {
 		// Check the plugin location for a new plugin
 		files, dirReadError := ioutil.ReadDir(pluginLocation)
 		if dirReadError != nil {
-			//fmt.Printf("Invalid Directory: %s\n", pluginLocation)
 			break
 		}
 		// Check for range of files in the location
@@ -209,18 +179,16 @@ func discoverPlugin(wg *sync.WaitGroup, pluginReg *PluginReg) {
 			break
 		}
 		// Wait for 1 sec
-		time.Sleep(time.Duration(DefaultInterval * 100))
+		time.Sleep(time.Duration(DefaultInterval))
 	}
 }
 
-/* Check if a plugin is already discovered */
+/* Check if a plugin is discovered by the plugin registry discovery service automatically or is discover implicitly */
 func (pluginReg *PluginReg) IsDiscovered(pluginname string, namespace string) bool {
 
 	appplugin := namespace + pluginname
-	fmt.Printf("going to take lock\n")
 	//pluginreg.regaccess.lock()
 	//defer pluginreg.regaccess.unlock()
-	fmt.Printf("lock aquired\n")
 	return pluginReg.isDiscovered(appplugin)
 }
 
@@ -233,7 +201,7 @@ func (pluginReg *PluginReg) isDiscovered(appPlugin string) bool {
 	return true
 }
 
-/* Check if a plugin is already loaded and active */
+/* Check if a plugin is loaded and active by the plugin registry automatically or is loaded implicitly */
 func (pluginReg *PluginReg) IsLoaded(pluginname string, namespace string) bool {
 
 	appplugin := namespace + pluginname
@@ -252,9 +220,8 @@ func (pluginReg *PluginReg) isLoaded(appPlugin string) bool {
 	return true
 }
 
-/* unload the plugin from the plugin Registry
- * (It doesn't remove the Plugin from Discoveed List)
- */
+/* Unload a Plugin from the plugin Registry. It invokes a stop request to the plugin.
+   (It doesn't remove the Plugin from Discovered Plugin List) */
 func (pluginReg *PluginReg) UnloadPlugin(plugin *Plugin) error {
 
 	// Generate Discovered plugin name
@@ -263,14 +230,6 @@ func (pluginReg *PluginReg) UnloadPlugin(plugin *Plugin) error {
 	// Initiate Locking
 	pluginReg.RegAccess.Lock()
 	defer pluginReg.RegAccess.Unlock()
-
-	// get the Plugin that is already loaded
-	/*
-		plugin := pluginReg.getPlugin(appPlugin)
-		if plugin == nil {
-			return fmt.Errorf("plugin is not Loaded")
-		}
-	*/
 
 	// Send the Stop request
 	stopErr := plugin.stop()
@@ -287,9 +246,9 @@ func (pluginReg *PluginReg) UnloadPlugin(plugin *Plugin) error {
 	return nil
 }
 
-/* Load the plugin to the plugin Registry
- * (if The discovery Process is not running, It discover the plugin)
- */
+/* Load the plugin to the plugin Registry explicitly when lazy load is active.
+(if The discovery Process is not running, It search for the plugin and then load it to the registry)
+*/
 func (pluginReg *PluginReg) LoadPlugin(pluginName string, pluginNamespace string) (*Plugin, error) {
 
 	var conf PluginConf
@@ -353,9 +312,7 @@ func (pluginReg *PluginReg) LoadPlugin(pluginName string, pluginNamespace string
 	return plugin, nil
 }
 
-/* Register callback that will be called on notification */
-
-// Get a plugin from the Plugin registry
+/* Get a plugin from the Plugin registry for a specified name and namespace */
 func (pluginReg *PluginReg) GetPlugin(pluginName string, pluginNamespace string) *Plugin {
 
 	appPlugin := pluginNamespace + pluginName
@@ -394,7 +351,6 @@ func (plugin *Plugin) activate() error {
 	if unmarshalError != nil {
 		return fmt.Errorf("Json Unmarshal failed: %s", unmarshalError)
 	}
-	fmt.Println("Methods: ", plugin.methods)
 
 	return nil
 }
@@ -418,7 +374,7 @@ func (plugin *Plugin) stop() error {
 	return nil
 }
 
-// Get the list of available method
+/* Get the list of available (registered) methods for a specific plugin */
 func (plugin *Plugin) GetMethods() []string {
 
 	var methods []string
@@ -426,9 +382,9 @@ func (plugin *Plugin) GetMethods() []string {
 	return methods
 }
 
-/* Register a callback */
+/* Register a callback that will be called on notification from the plugin */
 func (plugin *Plugin) RegisterCallback(function func([]byte)) error {
-	funcName := GetFuncName(function)
+	funcName := getFuncName(function)
 	if funcName == "" {
 		return fmt.Errorf("Failed to get the method name")
 	}
@@ -444,7 +400,6 @@ func (plugin *Plugin) RegisterCallback(function func([]byte)) error {
 	go plugin.executeCallback(funcName, function)
 
 	return nil
-
 }
 
 // Internal:  thread body to execute a callback request
@@ -480,7 +435,8 @@ func (plugin *Plugin) executeCallback(funcName string, function func([]byte)) {
 	}
 }
 
-// Executes a specific plugin method
+/* Executes a specific plugin method by the method name. Each method takes a byte array as input
+   and returns a byte array as output */
 func (plugin *Plugin) Execute(funcName string, body []byte) (error, []byte) {
 
 	pluginUrl := plugin.PluginUrl

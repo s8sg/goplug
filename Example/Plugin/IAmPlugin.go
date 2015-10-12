@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
 	GoPlug "github.com/swarvanusg/GoPlug"
 	"os"
@@ -8,17 +9,27 @@ import (
 	"syscall"
 )
 
+var plugin *GoPlug.PluginImpl
+
 func main() {
 
+	var err error
 	config := GoPlug.PluginImplConf{"./", "Do", "Test", "", false, activate, stop}
-	plugin, err := GoPlug.PluginInit(config)
+	plugin, err = GoPlug.PluginInit(config)
 	if err != nil {
 		fmt.Printf("Plugin Init Error: %s\n", err)
 		return
 	}
-	plugin.RegisterMethod("Do", Do)
+	plugin.RegisterMethod(Do)
 	plugin.Start()
 	shutdownChannel := makeShutdownChannel()
+
+	/* Wait for input */
+	fmt.Println("Press 'Enter' to notify registered Callback")
+	bufio.NewReader(os.Stdin).ReadBytes('\n')
+
+	//notify the callback
+	plugin.Notify("main.callBack", []byte("Test Data"))
 
 	//we block on this channel
 	<-shutdownChannel
@@ -42,6 +53,7 @@ func activate(data []byte) []byte {
 
 func stop(data []byte) []byte {
 	fmt.Printf("Stoping Plugin\n")
+	plugin.Stop()
 	return nil
 }
 

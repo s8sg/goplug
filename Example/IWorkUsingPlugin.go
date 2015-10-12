@@ -15,25 +15,8 @@ func main() {
 		return
 	}
 
-	/* Wait for input */
-	fmt.Print("Press 'Enter' to continue...")
+	fmt.Println("Press 'Enter' to continue...")
 	bufio.NewReader(os.Stdin).ReadBytes('\n')
-
-	/* Check if plug1 is loaded */
-	/*
-		if pluginReg.IsLoaded("Do", "Test") {
-			fmt.Printf("plug1 is loaded")
-			return
-		}*/
-
-	/* Load plug1, as lazy load is configured */
-	/*
-		plug1, err := pluginReg.LoadPlugin("Plug1", "Monitor")
-		if err != nil {
-			fmt.Printf("Plugin loading failed : %s\n", err)
-			return
-
-		}*/
 
 	/* get a plugin */
 	plugin1 := pluginReg.GetPlugin("Do", "Test")
@@ -44,16 +27,10 @@ func main() {
 
 	methods := plugin1.GetMethods()
 	/* get the list of method */
-	fmt.Println("Methods: ", methods, "\n")
-	/*
-		for _, value := range methods {
-			plugin1.Execute(value, nil)
-		}
-	*/
-
-	/* Wait for input */
-	fmt.Print("Press 'Enter' to Register Callback...")
-	bufio.NewReader(os.Stdin).ReadBytes('\n')
+	fmt.Println("Available Methods: ", methods, "\n")
+	for _, value := range methods {
+		plugin1.Execute(value, nil)
+	}
 
 	/* Register a callback */
 	err := plugin1.RegisterCallback(callBack)
@@ -63,7 +40,7 @@ func main() {
 	}
 
 	/* Wait for input */
-	fmt.Print("Press 'Enter' to unload plugin")
+	fmt.Printf("Press 'Enter' to unload plugin\n")
 	bufio.NewReader(os.Stdin).ReadBytes('\n')
 
 	/* unload the Plugin */
@@ -74,6 +51,7 @@ func main() {
 	}
 
 	pluginReg.Stop()
+	fmt.Printf("Waiting for pluginReg to stop \n")
 	pluginReg.WaitForStop()
 }
 

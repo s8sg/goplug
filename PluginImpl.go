@@ -1,18 +1,4 @@
 /* Plugin provides all the required interfaces to implement a GoPlugin
- *
- * Available API :
- *
- * func PluginInit(pluginImplConf PluginImplConf) (*Plugin, error)
- * >> Initialize a Plugin with specified Configuration
- *
- * func (plugin *Plugin) RegisterMethod(funcName string, method func([]byte) []byte)
- * >> Register a method to be executed for a Specified Path
- *
- * func (plugin *Plugin) Start() error
- * >> Start the execution of the specifiec Plugin
- *
- * func (plugin *Plugin) Stop() error
- * >> Stop the execution of that Plugin.
  */
 
 package GoPlug
@@ -29,7 +15,7 @@ import (
 	"strings"
 )
 
-/* The plugin impleentaion configuration  */
+/* The plugin implementaion configuration. Provides all the information that are required for the GoPlug to provide an implementation of Plugin */
 type PluginImplConf struct {
 	// Plugin location path
 	PluginLoc string
@@ -47,18 +33,21 @@ type PluginImplConf struct {
 	Stopper func([]byte) []byte
 }
 
+/* The Plugin Implentaion Struct to represent a Plugin, provides all the methods to be implemented */
 type PluginImpl struct {
 	pluginServer   *PluginConn.PluginServer
 	methodRegistry map[string]func([]byte) []byte
 	sockFile       string
 	addr           string
 	confFile       string
+	conf           *PluginConf
 }
 
-// channel list per callback
+// channel list per callback that are registered
 var channelMap map[string]chan []byte
 
-/* Init a plugin for a specific Plugin Conf */
+/* Initialize a plugin as per the provided plugin implementation configuration.
+   It returns a pointer to a PluginImpl that is used to perfom different operation on the implementde plugin */
 func PluginInit(pluginImplConf PluginImplConf) (*PluginImpl, error) {
 
 	plugin := &PluginImpl{}
@@ -83,7 +72,7 @@ func PluginInit(pluginImplConf PluginImplConf) (*PluginImpl, error) {
 	}
 
 	// Get conf file and Sock
-	confFile := filepath.Join(pluginImplConf.PluginLoc, pluginConf.NameSpace+pluginConf.Name+".pconf")
+	confFile := filepath.Join(pluginImplConf.PluginLoc, pluginConf.NameSpace+pluginConf.Name+DefaultConfExt)
 	pwd, _ := os.Getwd()
 	sockFileLoc := filepath.Join(pwd, pluginImplConf.PluginLoc)
 	pluginConf.Sock = filepath.Join(sockFileLoc, pluginConf.NameSpace+pluginConf.Name+".sock")
@@ -91,28 +80,24 @@ func PluginInit(pluginImplConf PluginImplConf) (*PluginImpl, error) {
 	// Get Lazyload
 	pluginConf.LazyLoad = pluginImplConf.LazyLoad
 
-	// Load Plugin Configuration
-	confSaveError := saveConfigs(confFile, pluginConf)
-	if confSaveError != nil {
-		//fmt.Println("Configuration save failed to the file: ", confFile, ", Error: ", confSaveError)
-		return nil, fmt.Errorf("Failed to save Configuration in file")
-	}
 	plugin.sockFile = pluginConf.Sock
 	plugin.addr = pluginConf.Url
 
 	// Initiate the Method Registry
 	plugin.methodRegistry = make(map[string]func([]byte) []byte)
-
+	// Register default function
 	plugin.methodRegistry["Activate"] = pluginImplConf.Activator
 	plugin.methodRegistry["Stop"] = pluginImplConf.Stopper
 	plugin.methodRegistry["RegisterCallback"] = callbackExecute
 
 	plugin.confFile = confFile
+	// Store the configuration
+	plugin.conf = &pluginConf
 
 	return plugin, nil
 }
 
-/* Internal Method: To implement the callback */
+/* Internal Method: To execute a callback -- wait for a data in a channel to be notified */
 func callbackExecute(data []byte) []byte {
 
 	// get the function name
@@ -127,28 +112,24 @@ func callbackExecute(data []byte) []byte {
 	channel := make(chan []byte, 0)
 
 	// Put the channel in the channelmap
-	fmt.Printf("Put the channel in the channelmap for: %s \n", funcName)
 	channelMap[funcName] = channel
 
-	fmt.Println("Waiting for data from channel")
 	// Wait for data from channel
 	returnData := <-channel
-	fmt.Println("Got data from channel: ", string(returnData))
 
 	return returnData
 }
 
-/* Internal Method: To Register method for the Plugin */
+/* Internal Method: Used to register a handle method for the incoming request to plugin. Should not be called explicitly */
 func (plugin *PluginImpl) Register() {
 
 	http.Handle("/", plugin)
 }
 
-/* Internal Method: To handle all http request */
+/* Internal Method: Default handler to serve all http request that comes to the plugin. Should not be called explicitly */
 func (plugin *PluginImpl) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 
 	methodName := strings.Split(req.URL.Path, "/")[1]
-	//fmt.Printf("URL found: %s\n", methodName)
 	if methodName == "" {
 		res.WriteHeader(400)
 	} else {
@@ -159,13 +140,17 @@ func (plugin *PluginImpl) ServeHTTP(res http.ResponseWriter, req *http.Request) 
 				methodReg := plugin.methodRegistry
 				methods := make([]string, len(methodReg))
 				idx := 0
+				// get all the register method
 				for key, _ := range methodReg {
-					methods[idx] = key
-					idx++
+					// Skip the implicit functions
+					if key != "Activate" && key != "Stop" && key != "RegisterCallback" {
+						methods[idx] = key
+						idx++
+					}
 				}
+				// marshal the method list sent on activation
 				data, marshalErr := json.Marshal(methods)
 				if marshalErr != nil {
-					//fmt.Println("failed to marshal methods")
 					res.WriteHeader(400)
 				}
 				// Write the methods list
@@ -185,34 +170,41 @@ func (plugin *PluginImpl) ServeHTTP(res http.ResponseWriter, req *http.Request) 
 	}
 }
 
-/* Method to register function for the plugin */
+/* Method to register a function for the plugin that could be invoked by the application.
+   Function Prototype: func ([]byte) []byte */
 func (plugin *PluginImpl) RegisterMethod(method func([]byte) []byte) {
 	// Get the name of the method
-	funcName := GetFuncName(method)
+	funcName := getFuncName(method)
 	plugin.methodRegistry[funcName] = method
 }
 
-/* Method to notify a registered callback */
+/* Method to notify a callback registered by the application by the name of the callback.
+   User could sent input bytes for the callback. Callback doesn't return anything */
 func (plugin *PluginImpl) Notify(callBack string, data []byte) error {
 
-	fmt.Println("Notifying the callback: ", callBack)
 	// Pnthread : on getting the notifcation and user data it puts the data on the channel
 	// Get the channel from global channel map
 	channel, ok := channelMap[callBack]
 	if !ok {
 		return fmt.Errorf("Callback could not be found for: %s", callBack)
 	}
-	fmt.Println("Sending data to channel")
-	fmt.Println("Sending data to channel")
 	// Send the data to the channel
 	channel <- data
-	fmt.Println("data sent on channel")
 
 	return nil
 }
 
-/* Start the Plugin Service */
+/* Used to start the Plugin Service. It makes a plugin operable and discoverable by application */
 func (plugin *PluginImpl) Start() error {
+
+	// Make the plugin available for dixcovery by saving the configuration
+	// Save Plugin Configuration
+	confFile := plugin.confFile
+	pluginConf := plugin.conf
+	confSaveError := saveConfigs(confFile, *pluginConf)
+	if confSaveError != nil {
+		return fmt.Errorf("Failed to save Configuration in file")
+	}
 
 	sockFile := plugin.sockFile
 	addr := plugin.addr
@@ -220,7 +212,6 @@ func (plugin *PluginImpl) Start() error {
 	config := &PluginConn.ServerConfiguration{Registrar: plugin, SockFile: sockFile, Addr: addr}
 	server, err := PluginConn.NewPluginServer(config)
 	if err != nil {
-		//fmt.Printf("Failed to Create server\n")
 		return fmt.Errorf("Failed to Create the server")
 	}
 	plugin.pluginServer = server
@@ -230,7 +221,7 @@ func (plugin *PluginImpl) Start() error {
 	return nil
 }
 
-/* Stop the Plugin service */
+/* Used to stop the Plugin service. It makes the plugin hidden from the application and stops all functionalities */
 func (plugin *PluginImpl) Stop() error {
 	err := plugin.pluginServer.Shutdown()
 	if err != nil {
