@@ -54,6 +54,7 @@ func activate(data []byte) []byte {
 func stop(data []byte) []byte {
 	fmt.Printf("Stoping Plugin\n")
 	plugin.Stop()
+	os.Exit(0)
 	return nil
 }
 

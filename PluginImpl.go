@@ -89,12 +89,19 @@ func PluginInit(pluginImplConf PluginImplConf) (*PluginImpl, error) {
 	plugin.methodRegistry["Activate"] = pluginImplConf.Activator
 	plugin.methodRegistry["Stop"] = pluginImplConf.Stopper
 	plugin.methodRegistry["RegisterCallback"] = callbackExecute
+	plugin.methodRegistry["Ping"] = ping
 
 	plugin.confFile = confFile
 	// Store the configuration
 	plugin.conf = &pluginConf
 
 	return plugin, nil
+}
+
+/* Internal Method: To ping a plugin */
+func ping(data []byte) []byte {
+	// Return the same data
+	return data
 }
 
 /* Internal Method: To execute a callback -- wait for a data in a channel to be notified */
@@ -143,7 +150,7 @@ func (plugin *PluginImpl) ServeHTTP(res http.ResponseWriter, req *http.Request) 
 				// get all the register method
 				for key, _ := range methodReg {
 					// Skip the implicit functions
-					if key != "Activate" && key != "Stop" && key != "RegisterCallback" {
+					if key != "Activate" && key != "Stop" && key != "RegisterCallback" && key != "Ping" {
 						methods[idx] = key
 						idx++
 					}
@@ -209,7 +216,7 @@ func (plugin *PluginImpl) Start() error {
 
 	// Start the server (it will add the sock file in proper position)
 	plugin.pluginServer.Start()
-	
+
 	// Make the plugin available for dixcovery by saving the configuration
 	// Save Plugin Configuration
 	confFile := plugin.confFile

@@ -49,6 +49,8 @@ type Plugin struct {
 	methods []string
 	// The plugin registered callback
 	callbacks map[string]bool
+	// Plugin disconnected state
+	connected bool
 }
 
 /* PluginRegConf provides the configuration to create a plugin registry
@@ -330,6 +332,14 @@ func (pluginReg *PluginReg) getPlugin(appPlugin string) *Plugin {
 	return nil
 }
 
+// function to check plugin status
+func (plugin *Plugin) checkConnection() bool {
+	if plugin.Ping() != nil {
+		return false
+	}
+	return true
+}
+
 // Activate a plugin
 func (plugin *Plugin) activate() error {
 	pluginUrl := plugin.PluginUrl
@@ -340,6 +350,7 @@ func (plugin *Plugin) activate() error {
 
 	resp, reqerr := pluginConn.Request(request)
 	if reqerr != nil {
+		plugin.connected = false
 		return reqerr
 	}
 	if resp.Status != "200 OK" {
@@ -421,6 +432,7 @@ func (plugin *Plugin) executeCallback(funcName string, function func([]byte)) {
 	for true {
 		resp, err := pluginConn.Request(request)
 		if err != nil {
+			plugin.connected = false
 			log.FATAL.Fatalf("Failed to sent CallBack Execution Request: %v", err)
 			return
 		}
@@ -447,6 +459,7 @@ func (plugin *Plugin) Execute(funcName string, body []byte) (error, []byte) {
 
 	resp, err := pluginConn.Request(request)
 	if err != nil {
+		plugin.connected = false
 		return err, nil
 	}
 	if resp.Status != "200 OK" {
@@ -454,4 +467,34 @@ func (plugin *Plugin) Execute(funcName string, body []byte) (error, []byte) {
 	}
 
 	return nil, resp.Body
+}
+
+/* Ping a specific plugin to check the plugin status */
+func (plugin *Plugin) Ping() error {
+
+	pluginUrl := plugin.PluginUrl
+	pluginConn := plugin.pluginConn
+
+	testData := "Test Data"
+	sendData := []byte(testData)
+
+	requestUrl := pluginUrl + "/" + "Ping"
+	request := &PluginConn.PluginRequest{Url: requestUrl, Body: sendData}
+
+	resp, err := pluginConn.Request(request)
+	if err != nil {
+		plugin.connected = false
+		return err
+	}
+	if resp.Status != "200 OK" {
+		return fmt.Errorf("request failed")
+	}
+
+	receivedData := string(resp.Body)
+
+	if receivedData != testData {
+		return fmt.Errorf("Received data is different than sent one")
+	}
+
+	return nil
 }

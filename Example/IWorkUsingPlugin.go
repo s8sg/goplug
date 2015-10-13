@@ -11,19 +11,27 @@ func main() {
 	plugRegConf := GoPlug.PluginRegConf{PluginLocation: "Plugin", AutoDiscover: true, ConfExt: ".pconf"}
 	pluginReg, regErr := GoPlug.PluginRegInit(plugRegConf)
 	if regErr != nil {
-		fmt.Printf("Plugin reg init failed")
+		fmt.Printf("Plugin reg init failed\n")
 		return
 	}
 
-	fmt.Println("Press 'Enter' to continue...")
+	fmt.Println("Press 'Enter' to continue...\n")
 	bufio.NewReader(os.Stdin).ReadBytes('\n')
 
 	/* get a plugin */
 	plugin1 := pluginReg.GetPlugin("Do", "Test")
 	if plugin1 == nil {
-		fmt.Printf("Get a plugin failed")
+		fmt.Printf("Get a plugin failed\n")
 		return
 	}
+
+	/* Check if plugin is connected */
+	pingErr := plugin1.Ping()
+	if pingErr != nil {
+		fmt.Printf("Ping Failed - Plugin is not connected: %v\n", pingErr)
+		return
+	}
+	fmt.Printf("Plugin is connected")
 
 	methods := plugin1.GetMethods()
 	/* get the list of method */
