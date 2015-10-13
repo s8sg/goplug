@@ -75,7 +75,15 @@ Plugin can be searched for available methods (registered methods by Plugin imple
 ```
 Method could be executed by method name 
 ```
-    returnBytes, err := plugin.Execute(method, inputBytes)
+    returnBytes, err := plugin.Execute(methodName, inputBytes)
+```
+Callback could be registered in Apllication to receive notification from plugin
+```
+    plugin.RegisterCallback(Foo)
+    ...
+    func Foo(data []byte) {
+        // Callback body called on notification from pugin
+    }
 ```
 Plugin could be forced to unload or stopped
 ```
@@ -98,15 +106,22 @@ The Plugin location should be same on which Plugin Registry is configured
 ```
 Method should be registered before starting the plugin
 ```
-plugin.RegisterMethod("Do", Do)
+plugin.RegisterMethod(Do)
 ...
 func Do(input []byte) []byte {
-    // Call on execution of "Do" 
+    // Call on execution of "Do" from application
 }
 ```
 Plugin start makes the plugin available for the discovery service and to be loaded
 ```
 plugin.Start()
+```
+Plugin could notify application using callback. A list of registered callbacks are available at plugins
+```
+    //get available callback list
+    callbackList := plugin.GetCallbacks()
+    ...
+    err := plugin.Notify(callbackName, inputBytes)
 ```
 Plugin stop makes the plugin to be stopped and unavailable from the Plugin Reg service. It should be done after plugin is unloaded from the Plugin registry. 
 ```
