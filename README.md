@@ -1,4 +1,4 @@
-# GoPlug ![Build Status](https://travis-ci.org/go-sql-driver/mysql.png?branch=master)
+# GoPlug 
 ```
 < GoPlug >
  --------
