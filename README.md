@@ -2,11 +2,17 @@
 ```
 < GoPlug >
  --------
-        \   ^__^
-         \  (oo)\_______
-            (__)\       )\/\
-                ||----w |
-                ||     ||
+   \
+    \   
+       _____  -----------------  _____
+      |     \/  ----     ----  \/     |
+       \  ==/  /    |   |    \  \==  /
+        \--/  | ()  |   |()   |  \--/
+          /    \---/ ___ \---/    \
+         |         _(===)_         |
+        |         (__/--\__)        |
+         |          |_||_|         |
+          \                       /   
 ```
 
 GoPlug is a pure Go Plugin libary project that provides flexibility, Loose Coupling and moduler approach of Building Software in/around Go. The goal of the project is to provide a simple, fast and a reliable plugin architecture that is independent of the platform. 
@@ -45,42 +51,42 @@ Lazy start could be enabled to make plugin loaded by explicit call to Plugin Reg
 ___
 Plugin conf (.pconf) defines the plugin properties. It is created by the Plugins at Plugin startup and loaded by the Application. 
 ###### Example.pconf
-```
+```json
     {
-        "Name" : NameOfPlugin
-        "NameSpace" : NamespaceOfPlugin
-        "Url" : unix://PluginUrl
-        "sock" : unixSockLocation.sock
-        "LazyLoad" : false
+        "Name" : "NameOfPlugin",
+        "NameSpace" : "NamespaceOfPlugin",
+        "Url" : "unix://PluginUrl",
+        "sock" : "unixSockLocation.sock",
+        "LazyLoad" : false,
     }
 ```
 ##### Application That Use Plugins
 ___
 Plugin registry is initialized with the plugin location where it will search for plugin conf **(.pconf)**, along with the Auto Discover setting. If auto discovery is enabled the discover service starts and search for new plugin, while in other case of discovery service not running, plugin gets discovered while loading (via Explicit call to LoadPlugin) if available.
-```
+```go
     plugRegConf := GoPlug.PluginRegConf{PluginLocation: "./PluginLoc", AutoDiscover: true}
     /* Initialize a Plugin Registry that will search location "./PluginLoc" for '.pconf' file */  
     pluginReg, err := GoPlug.PluginRegInit(plugRegConf)
 ```
 Lazyload is a feature that prevents auto loading of a plugin when it is discovered. If Plugin is Configured for lazy load plugin should be loaded explicitly when needed by the user.  
 
-```
+```go
     plugin, err := pluginReg.LoadPlugin("name", "namespace")
 ```
 Each plugin is identified by the plugin name and namespace
-```
+```go
     plugin := pluginReg.GetPlugin("name", "namespace")
 ```
 Plugin can be searched for available methods (registered methods by Plugin implementation)
-```
+```go
     methodList := plugin.GetMethods()
 ```
 Method could be executed by method name 
-```
+```go
     returnBytes, err := plugin.Execute(methodName, inputBytes)
 ```
 Callback could be registered in Apllication to receive notification from plugin
-```
+```go
     plugin.RegisterCallback(Foo)
     ...
     func Foo(data []byte) {
@@ -88,14 +94,14 @@ Callback could be registered in Apllication to receive notification from plugin
     }
 ```
 Plugin could be forced to unload or stopped
-```
+```go
     err := pluginReg.UnloadPlugin(plugin)
 ```
 ##### Plugin Implementation
 ___
 Plugin is initialized with the **Location**, **Name**, **Namespace** (optional), **Url** (optional), **LazyStart conf**, **Activator** and **Stopper**. 
 The Plugin location should be same on which Plugin Registry is configured
-```
+```go
     config := GoPlug.PluginImplConf{"PluginLoc", "Name", "Namespace", "unix://URL", false, activate, stop}
     plugin, err := GoPlug.PluginInit(config)
     ...
@@ -107,7 +113,7 @@ The Plugin location should be same on which Plugin Registry is configured
     }
 ```
 Method should be registered before starting the plugin
-```
+```go
 plugin.RegisterMethod(Do)
 ...
 func Do(input []byte) []byte {
@@ -115,18 +121,18 @@ func Do(input []byte) []byte {
 }
 ```
 Plugin start makes the plugin available for the discovery service and to be loaded
-```
+```go
 plugin.Start()
 ```
 Plugin could notify application using callback. A list of registered callbacks are available at plugins
-```
+```go
     //get available callback list
     callbackList := plugin.GetCallbacks()
     ...
     err := plugin.Notify(callbackName, inputBytes)
 ```
 Plugin stop makes the plugin to be stopped and unavailable from the Plugin Reg service. It should be done after plugin is unloaded from the Plugin registry. 
-```
+```go
 plugin.stop()
 ```
 [More ...](https://godoc.org/github.com/swarvanusg/GoPlug#pkg-index)
