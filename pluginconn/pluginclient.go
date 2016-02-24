@@ -1,4 +1,4 @@
-package PluginConn
+package pluginmanager
 
 import (
 	"bytes"
@@ -75,7 +75,9 @@ func (pluginConn *PluginClient) Request(request *PluginRequest) (*PluginResponse
 	fmt.Println("response Status:", resp.Status)
 	fmt.Println("response Headers:", resp.Header)
 	body, _ := ioutil.ReadAll(resp.Body)
-	fmt.Println("response Body:", string(body))
+	if body != nil {
+		fmt.Println("response Body:", string(body))
+	}
 
 	response := &PluginResponse{}
 	response.Status = resp.Status

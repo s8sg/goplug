@@ -1,98 +1,61 @@
 /* Plugin provides all the required interfaces to implement a GoPlugin
  */
 
-package GoPlug
+package pluginlib
 
 import (
 	"encoding/json"
 	"fmt"
 	log "github.com/spf13/jwalterweatherman"
-	PluginConn "github.com/swarvanusg/GoPlug/PluginConn"
+	. "github.com/swarvanusg/GoPlug"
+	PluginConn "github.com/swarvanusg/GoPlug/pluginconn"
 	"io/ioutil"
 	"net/http"
-	"os"
-	"path/filepath"
 	"strings"
 )
 
-/* The plugin implementaion configuration. Provides all the information that are required for the GoPlug to provide an implementation of Plugin */
-type PluginImplConf struct {
-	// Plugin location path
-	PluginLoc string
-	// The Name of the plugin
-	Name string
-	// The namespace of the plugin [optional - default: nil]
-	Namespace string
-	// The URL to reach the plugin over http (ie unix://ExamplePlug) [optional - default: unix://<Namespace><Name>]
-	Url string
-	// The LazyLoad configuration [optional - default: false]
-	LazyLoad bool
-	// The Function that would be called on Plugin Activation
-	Activator func([]byte) []byte
-	// The Function that would be called on Plugin DeActivation
-	Stopper func([]byte) []byte
+type Plugintype interface {
+	// Called to init your plugin when it is loaded
+	Init()
+	// Called to start your plugin
+	Start([]byte) []byte
+	// Called to stop your plugin
+	Stop([]byte) []byte
 }
 
 /* The Plugin Implentaion Struct to represent a Plugin, provides all the methods to be implemented */
 type PluginImpl struct {
 	pluginServer   *PluginConn.PluginServer
 	methodRegistry map[string]func([]byte) []byte
-	sockFile       string
-	addr           string
-	confFile       string
-	conf           *PluginConf
+	conf           *RuntimeConf
+	started        bool
 }
 
 // channel list per callback that are registered
 var channelMap map[string]chan []byte
 
 /* Initialize a plugin as per the provided plugin implementation configuration.
-   It returns a pointer to a PluginImpl that is used to perfom different operation on the implementde plugin */
-func PluginInit(pluginImplConf PluginImplConf) (*PluginImpl, error) {
+   It returns a pointer to a PluginImpl that is used to perfom different operation
+   on the implementde plugin */
+func PluginInit(plugin Plugintype) (*PluginImpl, error) {
 
-	plugin := &PluginImpl{}
-	pluginConf := PluginConf{}
+	var plugin = &PluginImpl{}
 
-	// Check pluginImplConf
-	if pluginImplConf.PluginLoc == "" {
-		return nil, fmt.Errorf("Invalid Configuration : PluginLoc file should be specified")
+	// Load the plugin runtime conf from pluginPath
+	pluginConf, err := loadRuntimeConfigs(DefaultPluginConfFile)
+	if err != nil {
+		return nil, fmt.Errorf("Failed to load the config file")
 	}
 
-	// Check name
-	if pluginImplConf.Name == "" {
-		return nil, fmt.Errorf("Invalid Configuration : Name should be specified")
-	}
-	pluginConf.Name = pluginImplConf.Name
-	pluginConf.NameSpace = pluginImplConf.Namespace
-
-	// Check url
-	pluginConf.Url = pluginImplConf.Url
-	if pluginImplConf.Url == "" {
-		pluginConf.Url = "unix://" + pluginConf.NameSpace + pluginConf.Name
-	}
-
-	// Get conf file and Sock
-	confFile := filepath.Join(pluginImplConf.PluginLoc, pluginConf.NameSpace+pluginConf.Name+DefaultConfExt)
-	pwd, _ := os.Getwd()
-	sockFileLoc := filepath.Join(pwd, pluginImplConf.PluginLoc)
-	pluginConf.Sock = filepath.Join(sockFileLoc, pluginConf.NameSpace+pluginConf.Name+".sock")
-
-	// Get Lazyload
-	pluginConf.LazyLoad = pluginImplConf.LazyLoad
-
-	plugin.sockFile = pluginConf.Sock
-	plugin.addr = pluginConf.Url
-
-	// Initiate the Method Registry
 	plugin.methodRegistry = make(map[string]func([]byte) []byte)
-	// Register default function
-	plugin.methodRegistry["Activate"] = pluginImplConf.Activator
-	plugin.methodRegistry["Stop"] = pluginImplConf.Stopper
+	channelMap = make(map[string]chan []byte)
+
+	// Register the basic method
+	plugin.methodRegistry["Start"] = plugin.Start
+	plugin.methodRegistry["Stop"] = plugin.Stop
 	plugin.methodRegistry["RegisterCallback"] = callbackExecute
 	plugin.methodRegistry["Ping"] = ping
 
-	plugin.confFile = confFile
-	// Store the configuration
 	plugin.conf = &pluginConf
 
 	return plugin, nil
@@ -129,7 +92,6 @@ func callbackExecute(data []byte) []byte {
 
 /* Internal Method: Used to register a handle method for the incoming request to plugin. Should not be called explicitly */
 func (plugin *PluginImpl) Register() {
-
 	http.Handle("/", plugin)
 }
 
@@ -143,14 +105,14 @@ func (plugin *PluginImpl) ServeHTTP(res http.ResponseWriter, req *http.Request) 
 		method, ok := plugin.methodRegistry[methodName]
 		if ok {
 			// Check if the method is Activate
-			if methodName == "Activate" {
+			if methodName == "Start" {
 				methodReg := plugin.methodRegistry
 				methods := make([]string, len(methodReg))
 				idx := 0
 				// get all the register method
 				for key, _ := range methodReg {
 					// Skip the implicit functions
-					if key != "Activate" && key != "Stop" && key != "RegisterCallback" && key != "Ping" {
+					if key != "Start" && key != "Stop" && key != "RegisterCallback" && key != "Ping" {
 						methods[idx] = key
 						idx++
 					}
@@ -179,7 +141,10 @@ func (plugin *PluginImpl) ServeHTTP(res http.ResponseWriter, req *http.Request) 
 
 /* Method to register a function for the plugin that could be invoked by the application.
    Function Prototype: func ([]byte) []byte */
-func (plugin *PluginImpl) RegisterMethod(method func([]byte) []byte) {
+func (plugin *PluginImpl) RegisterMethod(method func([]byte) []byte) error {
+	if plugin.started {
+		return fmt.Errorf("Method can't be registered once plugin has started")
+	}
 	// Get the name of the method
 	funcName := getFuncName(method)
 	plugin.methodRegistry[funcName] = method
@@ -204,8 +169,9 @@ func (plugin *PluginImpl) Notify(callBack string, data []byte) error {
 /* Used to start the Plugin Service. It makes a plugin operable and discoverable by application */
 func (plugin *PluginImpl) Start() error {
 
-	sockFile := plugin.sockFile
-	addr := plugin.addr
+	sockFile := plugin.conf.Sock
+	addr := plugin.conf.Url
+
 	// Create the Plugin Server
 	config := &PluginConn.ServerConfiguration{Registrar: plugin, SockFile: sockFile, Addr: addr}
 	server, err := PluginConn.NewPluginServer(config)
@@ -217,14 +183,8 @@ func (plugin *PluginImpl) Start() error {
 	// Start the server (it will add the sock file in proper position)
 	plugin.pluginServer.Start()
 
-	// Make the plugin available for dixcovery by saving the configuration
-	// Save Plugin Configuration
-	confFile := plugin.confFile
-	pluginConf := plugin.conf
-	confSaveError := saveConfigs(confFile, *pluginConf)
-	if confSaveError != nil {
-		return fmt.Errorf("Failed to save Configuration in file")
-	}
+	// Set the plugin start flag
+	plugin.started = true
 
 	return nil
 }
@@ -235,13 +195,5 @@ func (plugin *PluginImpl) Stop() error {
 	if err != nil {
 		return err
 	}
-	err = os.Remove(plugin.confFile)
-	if err != nil {
-		return err
-	}
 	return nil
-}
-
-func init() {
-	channelMap = make(map[string]chan []byte)
 }

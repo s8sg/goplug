@@ -1,4 +1,4 @@
-package PluginConn
+package pluginmanager
 
 import (
 	"encoding/json"
