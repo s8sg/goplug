@@ -5,12 +5,14 @@
 package pluginmanager
 
 import (
-	log "com.cfx/alleydog/jwalterweatherman"
-	PluginConn "com.cfx/alleydog/pluginmanager/pluginconn"
 	"encoding/json"
 	"errors"
 	"fmt"
+	log "github.com/spf13/jwalterweatherman"
+	commom "github.com/swarvanusg/GoPlug/common"
+	PluginConn "github.com/swarvanusg/GoPlug/common/pluginconn"
 	"io/ioutil"
+	"math/rand"
 	"os"
 	"os/exec"
 	"path"
@@ -37,12 +39,13 @@ var (
 	SaveConfError = errors.New("Failed to save the plugin conf")
 
 	// Conf Extension
-	DefaultConfFile       = "plugin.conf"
-	DefaultPluginConfFile = "runtime.conf"
-	DefaultTarExt         = ".tar"
-	PluginBinary          = "pluginmain"
-	PluginSockFile        = "pluginconn.sock"
-	PluginUrl             = "unix://plugin"
+	DefaultPluginConfFile        = "plugin.conf"
+	DefaultPluginRuntimeConfFile = "runtime.conf"
+	DefaultDiscoveredPlugin      = "discoveredplugin"
+	DefaultTarExt                = ".tar"
+	PluginBinary                 = "pluginmain"
+	PluginSockFile               = "pluginconn.sock"
+	PluginUrl                    = "unix://plugin"
 	// Default Interval for Discovery search in MS
 	DefaultInterval = 500 * time.Millisecond
 	// Default Connection retry Count
@@ -76,31 +79,21 @@ type Plugin struct {
 type PluginRegConf struct {
 	// The location to search for Plugin. Default is .
 	PluginLocation string
-	// The callback that is called when plugin is discovered
-	DiscoverCallback func(string) error
-}
-
-// Struct to define the runtime configuration of the plugin
-type RuntimeConf struct {
-	Url  string `json:"url"`
-	Sock string `json:"sockpath"`
 }
 
 /* PluginReg should be created per types of Plugin
  * each PluginReg monitor a specific location */
 type PluginReg struct {
-	// The discoveredPlugin list -- map the tar location for a appid
-	DiscoveredPlugin map[string]struct{}
 	// The waitgroup to wait for till PluginRegistry doesn't stop
 	Wg *sync.WaitGroup
 	// The Plugin search location
 	PluginLocation string
+	// The discovered Plugin location
+	discoveredPluginLoc string
 	// The mutex to sync the Plugin reg access
-	RegAccess *sync.Mutex
+	regAccess *sync.Mutex
 	// The flag to stop PluginRegistry Service
-	StopFlag bool
-	// The User defined Discover callback
-	discoverFunction func(string) error
+	stopchan chan int
 }
 
 /* Function is called to inititate the PluginRegistry as per the Plugin registry Configuration
@@ -118,12 +111,18 @@ func PluginRegInit(regConf PluginRegConf) (*PluginReg, error) {
 	pluginReg.DiscoveredPlugin = make(map[string]struct{})
 
 	pluginReg.PluginLocation = pluginLocation
-	pluginReg.discoverFunction = regConf.DiscoverCallback
+	// Create the discovered plugin location
+	// Create discovered plugin location in pluginLocation
+	pluginReg.discoveredPluginLoc, direrr = common.CreateDir(pluginLocation, DefaultDiscoveredPlugin)
+	if direrr != nil {
+		log.ERROR.Printf("Failed to create discovered plugin location, Error : %v", direrr)
+		return nil, fmt.Errorf("Failed to create discovered plugin location, Error : %v", direrr)
+	}
 	pluginReg.Wg = &wg
 	pluginReg.RegAccess = &sync.Mutex{}
-	pluginReg.StopFlag = false
+	pluginReg.stopchan = make(chan int)
 	wg.Add(1)
-	go discoverPluginService(&wg, pluginReg)
+	go pluginReg.discoverPluginService(&wg)
 	log.INFO.Printf("Plugin discovery started for : %s", pluginLocation)
 	return pluginReg, nil
 }
@@ -138,63 +137,153 @@ func (pluginReg *PluginReg) Stop() {
 	pluginReg.StopFlag = true
 }
 
+func (pluginReg *PluginReg) processFile() (isplugin bool, name string, namespace string, version string, untarFold string) {
+	var fileName string
+	isplugin = false
+	if f.IsDir() {
+		return
+	}
+	fileName = f.Name()
+	ext := filepath.Ext(fileName)
+	// Check if it is a tar File
+	if ext != DefaultTarExt {
+		return
+	}
+	// Get the tar name
+	tarName := fileName[0 : len(fileName)-len(ext)]
+	// Untar the tar file to get the pconf
+	tarFile := filepath.Join(pluginLocation, fileName)
+	// Untar the file in proper location
+	untarErr := common.UntarIt(tarFile, pluginLocation)
+	if untarErr != nil {
+		log.ERROR.Println("Failed to untar the file: ", tarFile, ", Error: ", untarErr)
+		return
+	}
+	// Get the tar folder
+	untarFold = filepath.Join(pluginLocation, tarName)
+	// Read the plugin conf
+	confFile := filepath.Join(untarFold, DefaultPluginConfFile)
+	pluginconf, confloaderror := common.LoadPluginConfigs(confFile)
+	if confloaderror != nil {
+		log.ERROR.Println("Failed to load plugin Configuration for file: ", tarFile, ", Error: ", confloaderror)
+		os.RemoveAll(untarFold)
+		return
+	}
+	if pluginconf.NameSpace != "" && pluginconf.Name != "" && pluginconf.Version != "" {
+		isplugin = true
+		name = pluginconf.Name
+		namespace = pluginconf.NameSpace
+		version = plginconf.Version
+		return
+	}
+	return
+}
+
+func getKey(name, namespace, version string) string {
+	key := fmt.Sprintf("%s_%s_%s", namespace, name, version)
+	return key
+}
+
+/**
+	// Create the plugin id (namespace _ name _ version)
+	namespace := pluginconf.NameSpace
+	name := pluginconf.Name
+	version := pluginconf.Version
+	lazyload := pluginconf.LazyLoad
+	key := fmt.Sprintf("%s_%s_%s", namespace, name, version)
+	// Check if it is discovered
+	_, found := pluginreg.DiscoveredMap[key]
+	if found {
+		log.INFO.Printf("Updating Plugin: %s", key)
+	}
+
+
+	// Create folder named (namespace_name_version) in pluginlocation/discoveredPluginLoc,
+	currentpluginlocation, direrr := common.CreateDir(pluginreg.discoveredPluginLoc, key)
+	if direrr != nil {
+		log.ERROR.Printf("Failed to create plugin location for: %s, Error : %v", key, direrr)
+		return nil, fmt.Errorf("Failed to create plugin location for: %s, Error : %v", key, direrr)
+	}
+	// Copy the tar file content into dir (namespace_name_version)
+	copyErr := common.CopyDir(untarFold, currentpluginlocation)
+	if copyErr != nil {
+		log.ERROR.Printf("Failed to copy plugin files for: %s, Error : %v", key, copyerr)
+		return nil, fmt.Errorf("Failed to copy plugin files for: %s, Error : %v", key, direrr)
+	}
+	// Save the plugin in DiscoveredMap
+	pluginreg.DiscoveredMap[key] = currentpluginlocation
+
+
+**/
+
 /* Function for the routine to discover services */
-func discoverPluginService(wg *sync.WaitGroup, pluginReg *PluginReg) {
+func (pluginReg *PluginReg) discoverPluginService(wg *sync.WaitGroup) {
 	defer wg.Done()
-	/* loop to Check for the Plugin Update */
-	for true {
-		pluginLocation := pluginReg.PluginLocation
-		// Check the plugin location for a new plugin
-		files, dirReadError := ioutil.ReadDir(pluginLocation)
-		if dirReadError != nil {
-			log.ERROR.Printf("Failed to read dir  %s, Error : %v", pluginLocation, dirReadError)
-			break
-		}
-		// Check for range of files in the location
-		for _, f := range files {
-			var fileName string
-			if f.IsDir() {
-				// Skip if it is a directory */
-				continue
-			}
-			fileName = f.Name()
-			ext := filepath.Ext(fileName)
-			// Check if it is a tar File
-			if ext == DefaultTarExt {
-				// Get the plugin name
-				tarName := fileName[0 : len(fileName)-len(ext)]
-				// Check if the plugin is already discovered
-				_, tarDiscovered := pluginReg.DiscoveredPlugin[tarName]
-				if !tarDiscovered {
-					// Untar the tar file to get the pconf
-					tarFile := filepath.Join(pluginLocation, fileName)
-					// Untar the file in proper location
-					untarErr := untarIt(tarFile, pluginLocation)
-					if untarErr != nil {
-						log.ERROR.Println("Failed to untar the file: ", tarFile, ", Error: ", untarErr)
-						continue
-					}
-					// Get the tar folder
-					tarFold := filepath.Join(pluginLocation, tarName)
+	pluginLocation := pluginReg.PluginLocation
 
-					// Call the Discover Callback
-					discoverErr := pluginReg.discoverFunction(tarFold)
-					if discoverErr != nil {
-						log.ERROR.Print("%v", discoverErr)
-						continue
+	// Create the filesystem watcher
+	watcher, watcheriErr := fsnotify.NewWatcher()
+	if watcheriErr != nil {
+		log.ERROR.Printf("Failed to initiate watcher, Error : %v", watcheriErr)
+		return
+	}
+	// Start watcher
+	watcherDirError := watcher.Watch(pluginLocation)
+	if watcherDirError != nil {
+		log.ERROR.Printf("Failed to start watch on %s: , Error : %v", pluginLocation, watcherDirError)
+		return
+	}
+	// For holding the last created file in the dir and create time
+	createtime := 0
+	createfile := ""
+	// For holding the last modified file and the modify time
+	modifytime := 0
+	modifyfile := ""
+	for {
+		select {
+		case event := watcher.Event:
+			switch {
+			case ev.IsCreate():
+				createtime = time.Now().Second()
+				createfile = ev.Name
+				fmt.Println("Create Event: ", ev.Name)
+				isplugin, name, namespace, version, untarfold := pluginReg.processFile(createfile)
+				if !isplugin {
+					continue
+				}
+				key := getKey(name, namespace, version)
+				if Is
+				if !pluginreg.lazyload {
+					pluginreg.LoadPlugin(namespace, name, version)
+				}
+			case ev.IsModify():
+				currenttime := time.Now().Second()
+				if (ev.Name == createfile && (currenttime-createtime) < 1) || (ev.Name == modifyfile) && (currenttime-modifytime) < 1 {
+				} else {
+					modifytime = time.Now().Nanosecond()
+					modifyfile = ev.Name
+					fmt.Println("Modify Event: ", ev.Name)
+					pluginReg.processFile(modifyfile)
+					// TODO: Check if plugin was already loaded or lazy load is not configured
+					if !pluginreg.lazyload /*&& pluginreg.IsLoaded()  */ {
+						pluginreg.LoadPlugin(namespace, name, version)
 					}
 
-					// Store the plugin in the discovered list
-					pluginReg.DiscoveredPlugin[tarName] = struct{}{}
+				}
+			case ev.IsDelete():
+				fmt.Println("Delete Event: ", ev.Name)
+				if ev.Name == pluginLocation {
+					log.ERROR.Printf("Plugin Location has been removed: %s", pluginLocation)
+					return
 				}
 			}
+		case watchererr := <-watcher.Error:
+			log.ERROR.Printf("Error while watching on %s: , Error : %v", pluginLocation, watchererr)
+			return
+		case pluginReg.stopchan:
+			log.Info.Printf("Stopping PluginReg Channel")
+			return
 		}
-		// Check if stop file has been raised
-		if pluginReg.StopFlag {
-			break
-		}
-		// Wait for 1 sec
-		time.Sleep(time.Duration(DefaultInterval))
 	}
 }
 
@@ -278,22 +367,22 @@ func stopProcess(pid int) error {
 /* Load the plugin to the plugin Registry explicitly when lazy load is active.
 (if The discovery Process is not running, It search for the plugin and then load it to the registry)
 */
-func (pluginReg *PluginReg) LoadPluginInstance(pluginLoc string) (*Plugin, error) {
+func (pluginReg *PluginReg) LoadPlugin(namespace string, name string, version string) (*Plugin, error) {
 
 	// Get the plugin tar location
 	tarFold := pluginLoc
 
 	// Runtime Conf file
-	confFile := filepath.Join(tarFold, DefaultPluginConfFile)
+	confFile := filepath.Join(tarFold, DefaultPluginiRuntimeConfFile)
 
 	// Create RuntimeConf
-	pluginConf := RuntimeConf{}
+	pluginConf := common.RuntimeConf{}
 	StartPath := "./" + PluginBinary
 	pluginConf.Url = PluginUrl
 	pluginConf.Sock = PluginSockFile
 
 	// Save new plugin Conf
-	confSaveError := saveRuntimeConfigs(confFile, pluginConf)
+	confSaveError := common.SaveRuntimeConfigs(confFile, pluginConf)
 	if confSaveError != nil {
 		log.ERROR.Println("Configuration load failed for file: ", confFile, ", Error: ", confSaveError)
 		return nil, SaveConfError
@@ -516,14 +605,13 @@ func (plugin *Plugin) executeCallback(funcName string, function func([]byte)) {
 
 /* Executes a specific plugin method by the method name. Each method takes a byte array as input
    and returns a byte array as output */
-func (plugin *Plugin) Execute(funcName string, body []byte) (error, []byte) {
-
-	found := false
+func (plugin *Plugin) Execute(funcName string, args ...interface{}) (error, []interface{}) {
 
 	if !plugin.connected {
 		return fmt.Errorf("Plugin is not connected"), nil
 	}
 
+	found := false
 	// check if method is registered
 	for _, method := range plugin.methods {
 		if method == funcName {
@@ -539,7 +627,8 @@ func (plugin *Plugin) Execute(funcName string, body []byte) (error, []byte) {
 	pluginConn := plugin.pluginConn
 
 	requestUrl := pluginUrl + "/" + funcName
-	request := &PluginConn.PluginRequest{Url: requestUrl, Body: body}
+	data := CreateJson(args)
+	request := &PluginConn.PluginRequest{Url: requestUrl, Body: data}
 
 	resp, err := pluginConn.Request(request)
 	if err != nil {
