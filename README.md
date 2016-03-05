@@ -4,7 +4,7 @@
 
 GoPlug is a pure Go Plugin libary project that provides **flexibility**, **loose Coupling** and **moduler approach** of Building Software in/around Go. The goal of the project is to provide a simple, fast and a reliable plugin architecture that is independent of the platform. 
 
-[![GoDoc](https://img.shields.io/badge/api-Godoc-blue.svg?style=flat-square)](https://godoc.org/github.com/swarvanusg/GoPlug)
+[![GoDoc](https://img.shields.io/badge/api-Godoc-blue.svg?style=flat-square)](https://godoc.org/github.com/swarvanusg/goplug)
 
 ### Version
 0.1.0
