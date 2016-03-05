@@ -1,23 +1,10 @@
 # GoPlug 
-```
-< GoPlug >
- --------
-   \
-    \   
-       _____  -----------------  _____
-      |     \/  ----     ----  \/     |
-       \  ==/  /    |   |    \  \==  /
-        \--/  | ()  |   |()   |  \--/
-          /    \---/ ___ \---/    \
-         |         _(===)_         |
-        |         (__/--\__)        |
-         |          |_||_|         |
-          \                       /   
-```
 
-GoPlug is a pure Go Plugin libary project that provides flexibility, Loose Coupling and moduler approach of Building Software in/around Go. The goal of the project is to provide a simple, fast and a reliable plugin architecture that is independent of the platform. 
+![](https://github.com/swarvanusg/goplug/blob/master/doc/goplug_v2.png)
 
-[GpPlug GoDoc] (https://godoc.org/github.com/swarvanusg/GoPlug)
+GoPlug is a pure Go Plugin libary project that provides **flexibility**, **loose Coupling** and **moduler approach** of Building Software in/around Go. The goal of the project is to provide a simple, fast and a reliable plugin architecture that is independent of the platform. 
+
+[![GoDoc](https://img.shields.io/badge/api-Godoc-blue.svg?style=flat-square)](https://godoc.org/github.com/swarvanusg/GoPlug)
 
 ### Version
 0.1.0
@@ -62,6 +49,8 @@ Plugin conf (.pconf) defines the plugin properties. It is created by the Plugins
 ```
 ##### Application That Use Plugins
 ___
+![](https://github.com/swarvanusg/goplug/blob/master/doc/goplug_app.png)
+
 Plugin registry is initialized with the plugin location where it will search for plugin conf **(.pconf)**, along with the Auto Discover setting. If auto discovery is enabled the discover service starts and search for new plugin, while in other case of discovery service not running, plugin gets discovered while loading (via Explicit call to LoadPlugin) if available.
 ```go
     plugRegConf := GoPlug.PluginRegConf{PluginLocation: "./PluginLoc", AutoDiscover: true}
@@ -99,6 +88,8 @@ Plugin could be forced to unload or stopped
 ```
 ##### Plugin Implementation
 ___
+![](https://github.com/swarvanusg/goplug/blob/master/doc/goplug_plugin.png)
+
 Plugin is initialized with the **Location**, **Name**, **Namespace** (optional), **Url** (optional), **LazyStart conf**, **Activator** and **Stopper**. 
 The Plugin location should be same on which Plugin Registry is configured
 ```go
@@ -138,25 +129,14 @@ plugin.stop()
 [More ...](https://godoc.org/github.com/swarvanusg/GoPlug#pkg-index)
 
 #### Step 4: How It Works
-Plugins runs a different process that sould be started explicitly. Unix domain socket is used for IPC where the communication is based on HTTP request response model. 
-###### Step by Step:
-1. At start of the Plugin it opens a Unix domain socket and listen for connection
-2. Once it initialized it puts the .pconf file in a specific location of Plugin Discovery
-3. Plugin Registry discover the .pconf and load the configuration to get the properties and UNIX sock
-4. Plugin Registry initialize the Connections using UNIX sock and it loads the Plugin information 
-5. Http request is made as per the methods Executed over the connection
+Plugins runs as a different process that is started by the plugin registry. For IPC in Linux Unix domain socket is used, where in Windows com is used. The communication is based on HTTP request response model. 
 
 ### Current Status
 GoPlug is unstable and in active development and testing
 
 ### Future Scope
-As GoPlug Plugin are independent process and the communication is based on Unix socket and Http. Plugin could be developed using any programming language. In future GoPlug Plugin Implementation library should be implementated in different languages.  
+As GoPlug Plugin are independent process and the communication is based on Unix socket and Http. Plugin could be developed using any programming language. In future GoPlug Plugin Implementation library should be implementated in different languages. Which will allow plugins to be written in different languages.  
 
 ### More Information
-This is an early release. I’ve been using it for a while and this is working fine. I like this one pretty well, but no guarantees
-that it won’t change a bit. 
+This is an early release. I’ve been using it for a while and this is working fine. I like this one pretty well, but no guarantees that it won’t change a bit. 
 
-For Any more info Contact:
-```
-swarvanusg@gmail.com
-```
