@@ -1,4 +1,4 @@
-package pluginmanager
+package pluginconn
 
 import (
 	"bytes"

@@ -1,4 +1,4 @@
-package pluginmanager
+package common
 
 import (
 	"archive/tar"
@@ -15,6 +15,38 @@ import (
 	"strconv"
 	"strings"
 )
+
+/* The configuration for Plugin (meta info for plugin) */
+type PluginConf struct {
+	NameSpace string `json:"namespace"`
+	Name      string `json:"name"`
+	Version   string `json:"Version"`
+	LazyLoad  bool   `json:"LazyLoad"`
+}
+
+// Struct to define the runtime configuration of the plugin
+type RuntimeConf struct {
+	Url  string `json:"url"`
+	Sock string `json:"sockpath"`
+}
+
+// Create json for i/p and o/p data of method execution
+func CreateJson(args ...interface{}) []byte {
+	argsarray := make([]interface{}, 0)
+	for _, arg := range args {
+		argsarray = append(argsarray, arg)
+	}
+
+	str, _ := json.Marshal(argsarray)
+	return str
+}
+
+// Read a json of array of elements and convert it to array of interface
+func ReadJson(str []byte) []interface{} {
+	datamap := make([]interface{}, 0)
+	json.Unmarshal(str, &datamap)
+	return datamap
+}
 
 // Function to copy a file
 func CopyFile(source string, dest string) (err error) {
@@ -44,6 +76,25 @@ func CopyFile(source string, dest string) (err error) {
 	return
 }
 
+// Function to create a dir in a specified path
+func CreateDir(parent string, dirname string) (string, error) {
+	// get properties of source dir
+	sourceinfo, err := os.Stat(parent)
+	if err != nil {
+		return nil, err
+	}
+
+	// Dir name
+	dirname := os.path.Join(parent, dirname)
+
+	// create dest dir
+	err = os.MkdirAll(dirname, sourceinfo.Mode())
+	if err != nil {
+		return nil, err
+	}
+	return dirname, nil
+}
+
 // Function to copy a dir
 func CopyDir(source string, dest string) (err error) {
 
@@ -54,22 +105,16 @@ func CopyDir(source string, dest string) (err error) {
 	}
 
 	// create dest dir
-
 	err = os.MkdirAll(dest, sourceinfo.Mode())
 	if err != nil {
 		return err
 	}
 
 	directory, _ := os.Open(source)
-
 	objects, err := directory.Readdir(-1)
-
 	for _, obj := range objects {
-
 		sourcefilepointer := source + "/" + obj.Name()
-
 		destinationfilepointer := dest + "/" + obj.Name()
-
 		if obj.IsDir() {
 			// create sub-directories - recursively
 			err = CopyDir(sourcefilepointer, destinationfilepointer)
@@ -83,7 +128,6 @@ func CopyDir(source string, dest string) (err error) {
 				fmt.Println(err)
 			}
 		}
-
 	}
 	return
 }
@@ -137,7 +181,7 @@ func getFuncName(i interface{}) string {
 }
 
 // load the config data from the plugin conf file
-func loadPluginConfigs(fname string) (PluginConf, error) {
+func LoadPluginConfigs(fname string) (PluginConf, error) {
 	// open the config file
 	configuration := PluginConf{}
 	file, err := os.Open(fname)
@@ -156,7 +200,7 @@ func loadPluginConfigs(fname string) (PluginConf, error) {
 }
 
 // load the config data from the plugin runtime conf file
-func loadRuntimeConfigs(fname string) (RuntimeConf, error) {
+func LoadRuntimeConfigs(fname string) (RuntimeConf, error) {
 	// open the config file
 	configuration := RuntimeConf{}
 	file, err := os.Open(fname)
@@ -175,7 +219,7 @@ func loadRuntimeConfigs(fname string) (RuntimeConf, error) {
 }
 
 // save the config data to the file
-func saveRuntimeConfigs(fileName string, pluginConf RuntimeConf) error {
+func SaveRuntimeConfigs(fileName string, pluginConf RuntimeConf) error {
 	// open the config file
 	file, err := os.Create(fileName)
 	defer file.Close()
@@ -197,7 +241,7 @@ func saveRuntimeConfigs(fileName string, pluginConf RuntimeConf) error {
 }
 
 // untar a tar file in the alleydog
-func untarIt(tarpath string, newpath string) error {
+func UntarIt(tarpath string, newpath string) error {
 
 	file, err := os.Open(tarpath)
 	if err != nil {
@@ -275,20 +319,4 @@ func untarIt(tarpath string, newpath string) error {
 	}
 
 	return nil
-}
-
-// Get byte from a structure
-func getBytes(t interface{}) []byte {
-	buf := &bytes.Buffer{}
-	err := binary.Write(buf, binary.BigEndian, t)
-	if err != nil {
-		return nil
-	}
-	return buf.Bytes()
-}
-
-// Get a interface populated from a byte
-func LoadInterface(buf []byte, t interface{}) {
-	buffer := bytes.NewBuffer(buf)
-	binary.Read(buffer, binary.BigEndian, t)
 }
