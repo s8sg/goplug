@@ -2,7 +2,7 @@
 
 ![](https://github.com/swarvanusg/goplug/blob/master/doc/goplug_v2.png)
 
-GoPlug is a pure Go Plugin libary project that provides **flexibility**, **loose Coupling** and **moduler approach** of Building Software in/around Go. The goal of the project is to provide a simple, fast and a reliable plugin architecture that is independent of the platform. 
+GoPlug is a pure Go Plugin library project that provides **flexibility**, **loose Coupling** and **moduler approach** of Building Software in/around Go. The goal of the project is to provide a simple, fast and a reliable plugin architecture that is independent of the platform. 
 
 [![GoDoc](https://img.shields.io/badge/api-Godoc-blue.svg?style=flat-square)](https://godoc.org/github.com/swarvanusg/goplug)
 
@@ -18,10 +18,10 @@ go get github.com/swarvanusg/GoPlug
 ```
 
 #### Step 2: Lifecycle
-GoPlug plugin lifecycle is quite simple as it consist only three state. 
-1. **Stopped** : Plugin is not yet started or stopped
-2. **Discovered/Installed** : Plugin is discoved and ready to be started
-3. **Started/Loaded** : Plugin is started or Loaded for serving request
+GoPlug plugin life-cycle is quite simple as it consist only three state. 
+1.  **Stopped** : Plugin is not yet started or stopped
+2.  **Discovered/Installed** : Plugin is discover and ready to be started
+3.  **Started/Loaded** : Plugin is started or Loaded for serving request
 
 ###### Plugin Registry
 Each of the application creates a Plugin Registry to manage Plugins. Plugin Registry is based on plugin discovery service that provide api to search, load and unload plugin to/from registry.
@@ -135,8 +135,7 @@ Plugins runs as a different process that is started by the plugin registry. For 
 GoPlug is unstable and in active development and testing
 
 ### Future Scope
-As GoPlug Plugin are independent process and the communication is based on Unix socket and Http. Plugin could be developed using any programming language. In future GoPlug Plugin Implementation library should be implementated in different languages. Which will allow plugins to be written in different languages.  
+As GoPlug Plugin are independent process and the communication is based on Unix socket and HTTP. Plugin could be developed using any programming language. In future GoPlug Plugin Implementation library should be implemented in different languages. Which will allow plugins to be written in different languages.  
 
 ### More Information
 This is an early release. I’ve been using it for a while and this is working fine. I like this one pretty well, but no guarantees that it won’t change a bit. 
-
